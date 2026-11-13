@@ -34,9 +34,13 @@ module Conf = struct
 
   let hostname =
     Irmin.Backend.Conf.key ~spec "hostname" Irmin.Type.string "127.0.0.1"
+
+  let max_message_size =
+    Irmin.Backend.Conf.key ~spec "max-message-size" Irmin.Type.int
+      Conn.default_max_message_size
 end
 
-let config ?(tls = false) ?hostname uri =
+let config ?(tls = false) ?hostname ?max_message_size uri =
   let default_host = Uri.host_with_default ~default:"127.0.0.1" uri in
   let config =
     Irmin.Backend.Conf.add (Irmin.Backend.Conf.empty Conf.spec) Conf.uri uri
@@ -45,7 +49,10 @@ let config ?(tls = false) ?hostname uri =
     Irmin.Backend.Conf.add config Conf.hostname
       (Option.value ~default:default_host hostname)
   in
-  Irmin.Backend.Conf.add config Conf.tls tls
+  let config = Irmin.Backend.Conf.add config Conf.tls tls in
+  match max_message_size with
+  | None -> config
+  | Some size -> Irmin.Backend.Conf.add config Conf.max_message_size size
 
 module Client (I : IO) (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) =
 struct
@@ -90,11 +97,17 @@ struct
     in
     client
 
-  let lock t f = Lwt_mutex.with_lock t.lock f [@@inline]
+  let close_and_fail t exn =
+    let* () =
+      Lwt.catch
+        (fun () -> close t)
+        (fun exn ->
+          [%log.debug "Cannot close the connection: %a" Fmt.exn exn];
+          Lwt.return_unit)
+    in
+    Lwt.fail exn
 
-  let send_command_header t (module Cmd : C.CMD) =
-    let header = Conn.Request.v_header ~command:Cmd.name in
-    Conn.Request.write_header t.conn header
+  let lock t f = Lwt_mutex.with_lock t.lock f [@@inline]
 
   let recv (t : t) name ty =
     let* res = Conn.Response.read_header t.conn in
@@ -113,11 +126,22 @@ struct
     else
       let name = Cmd.name in
       [%log.debug "Starting request: command=%s" name];
+      let header = Conn.Request.v_header ~command:name in
+      (* An exchange which stops before its end leaves the connection in a
+         state where it cannot be used any more *)
+      let lost = close_and_fail t in
       lock t (fun () ->
-          let* () = send_command_header t (module Cmd) in
-          let* () = Conn.write t.conn Cmd.req_t a in
-          let* () = IO.flush t.conn.oc in
-          recv t name Cmd.res_t)
+          if t.closed then raise Irmin.Closed;
+          let* () =
+            Lwt.catch
+              (fun () -> Conn.Request.write t.conn header Cmd.req_t a)
+              (function
+                | Irmin_server.Conn.Message_too_large _ as exn ->
+                    (* Nothing has been sent *)
+                    Lwt.fail exn
+                | exn -> lost exn)
+          in
+          Lwt.catch (fun () -> recv t name Cmd.res_t) lost)
 
   let recv_branch_diff (t : t) =
     let* _status = Conn.Response.read_header t.conn in
@@ -143,8 +167,10 @@ struct
   let rec connect ?ctx config =
     let ctx = Option.value ~default:(Lazy.force IO.default_ctx) ctx in
     let client = Client.mk_client config in
+    let max_message_size = Conf.get config Conf.max_message_size in
+    Conn.Handshake.V1.check_max_message_size (module Store) max_message_size;
     let* ic, oc = IO.connect ~ctx client in
-    let conn = Conn.v ic oc in
+    let conn = Conn.v ~max_message_size ic oc in
     let+ ok = Conn.Handshake.V1.send (module Store) conn in
     if not ok then Error.raise_error "invalid handshake"
     else
@@ -427,8 +453,8 @@ struct
 
   let close t = Client.close t
 
-  let connect ?tls ?hostname uri =
-    let conf = config ?tls ?hostname uri in
+  let connect ?tls ?hostname ?max_message_size uri =
+    let conf = config ?tls ?hostname ?max_message_size uri in
     Repo.v conf
 
   let request_store store =

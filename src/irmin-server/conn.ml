@@ -19,6 +19,11 @@ open Lwt.Syntax
 open Lwt.Infix
 include Conn_intf
 
+let () =
+  Printexc.register_printer (function
+    | Message_too_large len -> Some (Fmt.str "Message too large: %Ld bytes" len)
+    | _ -> None)
+
 module Codec = struct
   module type S = Codec.S
 
@@ -36,10 +41,10 @@ end
 module Make (I : IO) (T : Codec.S) = struct
   module IO = I
 
-  type t = { ic : IO.ic; oc : IO.oc; buffer : bytes }
+  type t = { ic : IO.ic; oc : IO.oc; max_message_size : int }
 
-  let v ?(buffer_size = 4096) ic oc =
-    { ic; oc; buffer = Bytes.create buffer_size }
+  let v ?(max_message_size = default_max_message_size) ic oc =
+    { ic; oc; max_message_size }
   [@@inline]
 
   let is_closed { ic; _ } = IO.is_closed ic
@@ -47,31 +52,52 @@ module Make (I : IO) (T : Codec.S) = struct
   let write_raw t s : unit Lwt.t =
     let len = String.length s in
     [%log.debug "Writing raw message: length=%d" len];
-    let* x =
-      IO.write_int64_be t.oc (Int64.of_int len) >>= fun () ->
-      if len <= 0 then Lwt.return_unit else IO.write t.oc s
-    in
-    let+ () = IO.flush t.oc in
-    x
+    (* The limit applies to both directions *)
+    if len > t.max_message_size then
+      Lwt.fail (Message_too_large (Int64.of_int len))
+    else
+      let* x =
+        IO.write_int64_be t.oc (Int64.of_int len) >>= fun () ->
+        if len <= 0 then Lwt.return_unit else IO.write t.oc s
+      in
+      let+ () = IO.flush t.oc in
+      x
 
-  let write t ty x : unit Lwt.t =
+  (* Nothing must be sent of a message which cannot be sent in full: the size
+     is checked before the header is written. *)
+  let write_with_header t ~header ty x : unit Lwt.t =
     let s = T.encode ty x in
-    write_raw t s
+    let len = String.length s in
+    if len > t.max_message_size then
+      Lwt.fail (Message_too_large (Int64.of_int len))
+    else
+      let* () = header () in
+      write_raw t s
+
+  let write t ty x = write_with_header t ~header:Lwt.return ty x
+  let chunk_size = 0x10000
+
+  (* The length is chosen by the peer: the buffer only grows with the data
+     which has been received. *)
+  let read_exactly t n =
+    let rec fill buf filled =
+      let size = Bytes.length buf in
+      let* () = IO.read_into_exactly t.ic buf filled (size - filled) in
+      if size = n then Lwt.return buf
+      else
+        let bigger = Bytes.create (min n (2 * size)) in
+        Bytes.blit buf 0 bigger 0 size;
+        fill bigger size
+    in
+    fill (Bytes.create (min n chunk_size)) 0
 
   let read_raw t =
-    let* n =
-      Lwt.catch (fun () -> IO.read_int64_be t.ic) (fun _ -> Lwt.return 0L)
-    in
+    let* n = IO.read_int64_be t.ic in
     [%log.debug "Raw message length=%Ld" n];
     if n <= 0L then Lwt.return Bytes.empty
-    else
-      let n = Int64.to_int n in
-      let buf =
-        if n >= Bytes.length t.buffer then Bytes.create n
-        else Bytes.sub t.buffer 0 n
-      in
-      let+ () = IO.read_into_exactly t.ic buf 0 n in
-      buf
+    else if n > Int64.of_int t.max_message_size then
+      Lwt.fail (Message_too_large n)
+    else read_exactly t (Int64.to_int n)
 
   let read t ty =
     let+ buf = read_raw t in
@@ -108,6 +134,14 @@ module Make (I : IO) (T : Codec.S) = struct
           let* () = write_raw t s in
           Lwt.return_true
         else Lwt.return_false
+
+      let check_max_message_size store size =
+        let min = String.length (fingerprint store) in
+        if size < min then
+          Fmt.invalid_arg
+            "max_message_size: %d bytes is too short, the handshake needs %d \
+             bytes"
+            size min
     end
   end
 
@@ -120,6 +154,9 @@ module Make (I : IO) (T : Codec.S) = struct
       [%log.debug "Writing response header: status=%d" status];
       let+ x = IO.write_char t.oc (char_of_int status) in
       x
+
+    let write t header ty x =
+      write_with_header t ~header:(fun () -> write_header t header) ty x
 
     let read_header t =
       [%log.debug "Starting response header read"];
@@ -150,6 +187,9 @@ module Make (I : IO) (T : Codec.S) = struct
       let* () = IO.write_char t.oc (char_of_int (String.length command)) in
       IO.write t.oc (String.lowercase_ascii command)
 
+    let write t header ty x =
+      write_with_header t ~header:(fun () -> write_header t header) ty x
+
     let read_header t : header Lwt.t =
       let* length = IO.read_char t.ic >|= int_of_char in
       let command = String.make length ' ' in
@@ -172,8 +212,11 @@ module Make (I : IO) (T : Codec.S) = struct
     [@@inline]
 
     let err conn msg : 'a t Lwt.t =
+      (* An error which is too long is cut: its header is already sent *)
+      let msg = "ERROR " ^ msg in
+      let len = min (String.length msg) conn.max_message_size in
       let* t = make 1 conn in
-      let+ () = write_raw conn ("ERROR " ^ msg) in
+      let+ () = write_raw conn (String.sub msg 0 len) in
       t
     [@@inline]
 
@@ -183,9 +226,16 @@ module Make (I : IO) (T : Codec.S) = struct
     [@@inline]
 
     let v client ty (x : 'a) : 'a t Lwt.t =
-      let* r = make 0 client in
-      write ty x r
-    [@@inline]
+      let status = 0 in
+      Lwt.catch
+        (fun () ->
+          let+ () = Response.write client { status } ty x in
+          { status; conn = client })
+        (function
+          | Message_too_large len ->
+              (* Nothing has been sent of the response *)
+              err client (Fmt.str "response too large: %Ld bytes" len)
+          | exn -> Lwt.fail exn)
 
     let ok conn : unit t Lwt.t = v conn Irmin.Type.unit () [@@inline]
 

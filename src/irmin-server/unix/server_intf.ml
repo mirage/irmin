@@ -27,10 +27,16 @@ module type S = sig
   val v :
     ?tls_config:[ `Cert_file of string ] * [ `Key_file of string ] ->
     ?dashboard:Conduit_lwt_unix.server ->
+    ?max_message_size:int ->
     uri:Uri.t ->
     Irmin.config ->
     t Lwt.t
-  (** Create an instance of the server *)
+  (** Create an instance of the server. The server closes the connection of a
+      client sending a message longer than [max_message_size] bytes. The default
+      is {!Irmin_server.Conn.default_max_message_size}.
+
+      @raise Invalid_argument
+        if [max_message_size] is too short for the handshake. *)
 
   val serve : ?stop:unit Lwt.t -> t -> unit Lwt.t
   (** Run the server *)

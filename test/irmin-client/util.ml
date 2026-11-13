@@ -76,13 +76,13 @@ let wait_for_server uri =
 (* Fork a server and wait until it is listening. The processes are forked
    before the first client is created: a child must not inherit the
    connections of the tests. *)
-let fork_server uri =
+let fork_server ?max_message_size uri =
   match Lwt_unix.fork () with
   | 0 ->
       in_child @@ fun () ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
       let conf = Irmin_mem.config () in
-      Lwt_main.run (Server.v ~uri conf >>= Server.serve)
+      Lwt_main.run (Server.v ?max_message_size ~uri conf >>= Server.serve)
   | pid ->
       at_exit (fun () -> kill_quietly pid);
       wait_for_server uri;
