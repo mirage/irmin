@@ -124,3 +124,11 @@ Show documentation
       log         List commits
   
   See `irmin help <command>` for more information on a specific command.
+
+The server refuses the options which are not valid
+  $ irmin server --max-message-size 10
+  ERROR: max_message_size: 10 bytes is too short, the handshake needs 130 bytes
+  [1]
+  $ irmin server --allowed-origin example.org
+  ERROR: allowed_origins: "example.org" is not an origin, like https://example.org
+  [1]
