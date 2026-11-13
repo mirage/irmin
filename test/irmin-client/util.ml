@@ -76,14 +76,17 @@ let mem_config kind =
   let key = Irmin.Backend.Conf.root spec in
   Irmin.Backend.Conf.singleton spec key kind
 
-(* Run a server for as long as [sw] is on. *)
-let start_server ~sw ~clock kind uri =
+let serve_mem kind ~stop uri =
+  Server.v ~uri (mem_config kind) >>= Server.serve ~stop
+
+(* Run a server, by default on a memory store, for as long as [sw] is on. *)
+let start_server ?serve ~sw ~clock kind uri =
+  let serve = Option.value serve ~default:(serve_mem kind) in
   let stop, set_stop = Lwt.wait () in
   Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
   Eio.Fiber.fork_daemon ~sw (fun () ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
-      let conf = mem_config kind in
-      Lwt_eio.run_lwt (fun () -> Server.v ~uri conf >>= Server.serve ~stop);
+      Lwt_eio.run_lwt (fun () -> serve ~stop uri);
       `Stop_daemon);
   wait_for_server ~clock uri
 

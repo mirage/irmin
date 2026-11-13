@@ -3,6 +3,8 @@
  (package irmin-client)
  (libraries
   irmin.mem
+  irmin-pack
+  irmin-pack.unix
   irmin-server.unix
   irmin-client.unix
   websocket-lwt-unix
