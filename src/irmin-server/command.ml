@@ -94,6 +94,14 @@ struct
 
     open Store.Backend
 
+    let equal_hash = Irmin.Type.(unstage (equal Store.Hash.t))
+
+    (* [unsafe_add] trusts the hash it is given, which comes from the client
+       here. A wrong one would make the object of this hash unreadable. *)
+    let with_valid_hash conn ~name hash expected f =
+      if equal_hash hash expected then f ()
+      else Return.err conn (name ^ ": the hash is not the hash of the value")
+
     module Contents = struct
       type key = Contents.key
 
@@ -157,6 +165,8 @@ struct
         type res = key [@@deriving irmin]
 
         let run conn ctx _ (hash, value) =
+          with_valid_hash conn ~name hash (Contents.Hash.hash value)
+          @@ fun () ->
           let* k =
             Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun contents _ _ ->
@@ -262,6 +272,7 @@ struct
         type res = key [@@deriving irmin]
 
         let run conn ctx _ (hash, value) =
+          with_valid_hash conn ~name hash (Node.Hash.hash value) @@ fun () ->
           let* k =
             Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun _ node _ ->
@@ -362,6 +373,7 @@ struct
         type res = key [@@deriving irmin]
 
         let run conn ctx _ (hash, value) =
+          with_valid_hash conn ~name hash (Commit.Hash.hash value) @@ fun () ->
           let* k =
             Lwt_eio.run_eio @@ fun () ->
             Repo.batch ctx.repo (fun _ _ commit ->
