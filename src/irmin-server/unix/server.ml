@@ -34,6 +34,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     server : Conduit_lwt_unix.server;
     config : Irmin.config;
     max_message_size : int option;
+    allowed_origins : string list;
     repo : Store.Repo.t;
     info : Command.Server_info.t;
   }
@@ -41,7 +42,8 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   let readonly conf =
     Irmin.Backend.Conf.add conf Irmin_pack.Conf.Key.readonly true
 
-  let v ?tls_config ?dashboard ?max_message_size ~uri config =
+  let v ?tls_config ?dashboard ?max_message_size ?(allowed_origins = []) ~uri
+      config =
     let scheme = Uri.scheme uri |> Option.value ~default:"tcp" in
     let* ctx, server =
       match String.lowercase_ascii scheme with
@@ -74,7 +76,18 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     let+ repo = Store.Repo.v config in
     let start_time = Unix.time () in
     let info = Command.Server_info.{ start_time } in
-    { ctx; uri; server; dashboard; config; max_message_size; repo; info }
+    let allowed_origins = List.map String.lowercase_ascii allowed_origins in
+    {
+      ctx;
+      uri;
+      server;
+      dashboard;
+      config;
+      max_message_size;
+      allowed_origins;
+      repo;
+      info;
+    }
 
   let commands = Hashtbl.create (List.length Command.commands)
   let () = Hashtbl.replace_seq commands (List.to_seq Command.commands)
@@ -243,6 +256,20 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     Lwt.async (fun () -> send_oc true output_ic output_oc client);
     callback server input_ic output_oc
 
+  (* A browser sends the origin of the page opening a websocket. Without this
+     check, any page visited by someone who can reach the server could use
+     it. Other clients do not send this header. *)
+  let check_origin t req =
+    match Cohttp.Header.get (Cohttp.Request.headers req) "origin" with
+    | None -> true
+    | Some origin ->
+        let allowed =
+          List.mem (String.lowercase_ascii origin) t.allowed_origins
+        in
+        if not allowed then
+          [%log.warn "Websocket refused: origin %S is not allowed" origin];
+        allowed
+
   let on_exn x = [%log.err "EXCEPTION: %s" (Printexc.to_string x)]
   let json_string = Irmin.Type.to_json_string Irmin.Type.string
 
@@ -361,9 +388,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       match Uri.scheme t.uri with
       | Some "ws" | Some "wss" ->
           Websocket_lwt_unix.establish_standard_server ~ctx:t.ctx ~mode:t.server
-            ~on_exn
-            ~check_request:(fun _ -> true)
-            (websocket_handler t)
+            ~on_exn ~check_request:(check_origin t) (websocket_handler t)
       | _ ->
           Conduit_lwt_unix.serve ?stop ~ctx:t.ctx ~on_exn ~mode:t.server
             (fun _ ic oc -> callback t ic oc)

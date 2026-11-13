@@ -42,14 +42,15 @@ let in_child f =
   Unix._exit code
 
 (* Fork a server and wait until it should be listening. *)
-let fork_server ?dashboard ?max_message_size uri =
+let fork_server ?dashboard ?allowed_origins ?max_message_size uri =
   match Lwt_unix.fork () with
   | 0 ->
       in_child @@ fun () ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
       let conf = Irmin_mem.config () in
       Lwt_main.run
-        (Server.v ?dashboard ?max_message_size ~uri conf >>= Server.serve)
+        (Server.v ?dashboard ?allowed_origins ?max_message_size ~uri conf
+        >>= Server.serve)
   | pid ->
       Unix.sleep 3;
       pid

@@ -28,12 +28,25 @@ module type S = sig
     ?tls_config:[ `Cert_file of string ] * [ `Key_file of string ] ->
     ?dashboard:Conduit_lwt_unix.server ->
     ?max_message_size:int ->
+    ?allowed_origins:string list ->
     uri:Uri.t ->
     Irmin.config ->
     t Lwt.t
-  (** Create an instance of the server. The server closes the connection of a
-      client sending a message longer than [max_message_size] bytes. The default
-      is {!Irmin_server.Conn.default_max_message_size}. *)
+  (** Create an instance of the server.
+
+      The server closes the connection of a client sending a message longer than
+      [max_message_size] bytes, and answers with an error instead of a longer
+      response. This includes the slices of [export] and [import]. The default
+      is {!Irmin_server.Conn.default_max_message_size}. The frames of the [ws]
+      and [wss] schemes are read before this limit applies.
+
+      With the [ws] and [wss] schemes, a connection coming from a web page is
+      only accepted if the origin of the page is in [allowed_origins]. An origin
+      is written as the browser sends it, like [https://example.org] or
+      [http://localhost:8080]: no path, no final [/], no default port. The
+      comparison ignores the case and there is no wildcard. The default is the
+      empty list: no web page can connect. The clients which are not browsers
+      are not concerned. *)
 
   val serve : ?stop:unit Lwt.t -> t -> unit Lwt.t
   (** Run the server *)
