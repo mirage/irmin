@@ -42,16 +42,19 @@ let in_child f =
   Unix._exit code
 
 (* Fork a server and wait until it should be listening. *)
-let fork_server ?max_message_size uri =
+let fork_server ?dashboard ?max_message_size uri =
   match Lwt_unix.fork () with
   | 0 ->
       in_child @@ fun () ->
       let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
       let conf = Irmin_mem.config () in
-      Lwt_main.run (Server.v ?max_message_size ~uri conf >>= Server.serve)
+      Lwt_main.run
+        (Server.v ?dashboard ?max_message_size ~uri conf >>= Server.serve)
   | pid ->
       Unix.sleep 3;
       pid
+
+let dashboard_port = 9299
 
 let run_server s =
   let kind, uri =
@@ -60,7 +63,12 @@ let run_server s =
     | `Unix_domain -> ("Unix_domain", unix_uri "test.sock")
     | `Tcp -> ("Tcp", Uri.of_string "tcp://localhost:90992")
   in
-  (kind, fork_server uri, uri)
+  let dashboard =
+    match s with
+    | `Unix_domain -> Some (`TCP (`Port dashboard_port))
+    | `Tcp | `Websocket -> None
+  in
+  (kind, fork_server ?dashboard uri, uri)
 
 let suite client all =
   List.map

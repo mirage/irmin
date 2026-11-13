@@ -244,6 +244,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     callback server input_ic output_oc
 
   let on_exn x = [%log.err "EXCEPTION: %s" (Printexc.to_string x)]
+  let json_string = Irmin.Type.to_json_string Irmin.Type.string
 
   let dashboard t mode =
     let list store prefix =
@@ -293,10 +294,10 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
         let* keys =
           Lwt_list.map_s
             (fun (path, kind, hash) ->
-              Format.sprintf {|{"path": "%s", "kind": "%s", "hash": "%s"}|}
-                (Irmin.Type.to_string Store.path_t path)
-                kind
-                (Irmin.Type.to_string Store.hash_t hash)
+              Format.sprintf {|{"path": %s, "kind": %s, "hash": %s}|}
+                (json_string (Irmin.Type.to_string Store.path_t path))
+                (json_string kind)
+                (json_string (Irmin.Type.to_string Store.hash_t hash))
               |> Lwt.return)
             keys
         in

@@ -15,6 +15,9 @@
 
 ### Fixed
 
+- **irmin-server**
+  - Dashboard: show the paths and the contents of the store as text, not as
+    HTML, and send the paths as JSON strings (@balat)
 - **irmin-server**, **irmin-client**
   - Do not allocate the length announced by the peer before the message is
     received (@balat)

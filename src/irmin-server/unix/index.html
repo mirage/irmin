@@ -164,20 +164,22 @@
         var kind = document.createElement("span");
 
         path.classList.add("item-path");
-        path.innerHTML = data.path;
+        // A path which is not valid UTF-8 is sent in base64
+        path.textContent =
+          typeof data.path === "string" ? data.path : atob(data.path.base64);
 
         kind.classList.add("item-kind");
-        kind.innerHTML = data.kind;
+        kind.textContent = data.kind;
 
         hash.classList.add("item-hash");
-        hash.innerHTML = data.hash;
+        hash.textContent = data.hash;
 
         elem.appendChild(path);
         elem.appendChild(hash);
         elem.appendChild(kind);
 
         elem.onclick = function(){
-          update(this.firstChild.innerHTML, branchInput.value);
+          update(this.firstChild.textContent, branchInput.value);
         }
         return elem;
       }
@@ -194,16 +196,15 @@
                   var code = ch.charCodeAt(0);
                   return " " + hex[(0xF0 & code) >> 4] + hex[0x0F & code];
               }).join("");
-              codes += "&nbsp;&nbsp;&nbsp;".repeat(blockSize - block.length);
+              codes += "   ".repeat(blockSize - block.length);
               var chars = block.replace(/[\x00-\x1F\x20]/g, '.');
               chars +=  " ".repeat(blockSize - block.length);
               lines.push(addr + " | " + codes + " | " + chars);
           }
-          return lines.join("<br>");
+          return lines.join("\n");
       }
- + "</pre>"
       function getContents(data) {
-        if (typeof data.contents === "string") return "<pre>" + data.contents + "</pre>";
+        if (typeof data.contents === "string") return data.contents;
 
         if (data.contents.base64){
           let b = atob(data.contents.base64);
@@ -228,9 +229,14 @@
           list.innerHTML = "";
           document.getElementById("contents").innerHTML = "";
           if (data.contents){
-            let html = "<div class='content-hash'>" + data.hash + "</div>";
-            html += getContents(data);
-            document.getElementById("contents").innerHTML = html;
+            let contents = document.getElementById("contents");
+            let hash = document.createElement("div");
+            hash.classList.add("content-hash");
+            hash.textContent = data.hash;
+            let pre = document.createElement("pre");
+            pre.textContent = getContents(data);
+            contents.appendChild(hash);
+            contents.appendChild(pre);
             return;
           }
           for(var i = 0; i < data.length; i++){
