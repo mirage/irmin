@@ -10,6 +10,15 @@
     it, the `show` command of `irmin-tezos-explorer` only reports an error
     (@balat)
 
+### Fixed
+
+- **irmin-server**
+  - Do not stop the server on a websocket error, such as a frame which is not
+    valid or a connection reset by the client (#2436, @balat)
+  - Close the file descriptors of a websocket when it ends (#2436, @balat)
+  - Send nothing more to a websocket client once it has closed the connection
+    (#2436, @balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

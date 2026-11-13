@@ -55,6 +55,89 @@ let ping client () =
   Logs.debug (fun l -> l "AFTER PING");
   Alcotest.(check (result unit error)) "ping" (Ok ()) r
 
+(* A frame which is not valid closes its connection, not the server. *)
+let websocket_bad_frame ~clock () =
+  let port = free_port () in
+  Eio.Switch.run @@ fun sw ->
+  start_server ~sw ~clock "Frames" (websocket_uri port);
+  ( with_connection ~port @@ fun (ic, oc) ->
+    let open Lwt.Syntax in
+    let* accepted = upgrade ~port (ic, oc) in
+    Alcotest.(check bool) "upgrade" true accepted;
+    (* A control frame cannot be this long *)
+    let* () = Lwt_io.write oc "\x89\xfe\x00\x80" in
+    let* () = Lwt_io.flush oc in
+    (* The server closes the connection *)
+    let+ _ = read_frames (ic, oc) in
+    () );
+  Alcotest.(check bool)
+    "server still running" true
+    (with_connection ~port (upgrade ~port))
+
+(* A connection reset by the client does not stop the server either. *)
+let websocket_reset ~clock () =
+  let port = free_port () in
+  Eio.Switch.run @@ fun sw ->
+  start_server ~sw ~clock "Reset" (websocket_uri port);
+  Lwt_eio.run_lwt (fun () -> reset_websocket ~port);
+  Alcotest.(check bool)
+    "server still running" true
+    (with_connection ~port (upgrade ~port))
+
+(* Send a handshake and then a Close frame on a new websocket, and read the
+   frames of the server until it closes the connection. *)
+let close_connection ~port =
+  with_connection ~port @@ fun (ic, oc) ->
+  let open Lwt.Syntax in
+  let* accepted = upgrade ~port (ic, oc) in
+  Alcotest.(check bool) "upgrade" true accepted;
+  (* At once, so that the server reads the Close frame before it answers *)
+  let* () = write_frames oc [ handshake_frame (); close_frame ] in
+  read_frames (ic, oc)
+
+(* The server sends nothing after the Close frame which answers the one of
+   the client, not even the answer to a message received before. *)
+let websocket_close ~clock () =
+  let port = free_port () in
+  Eio.Switch.run @@ fun sw ->
+  start_server ~sw ~clock "Close" (websocket_uri port);
+  check_close (close_connection ~port)
+
+(* The server keeps nothing of a websocket which is closed, before or after
+   the handshake. The file descriptors can only be counted where [/dev/fd]
+   gives them. *)
+let websocket_closed ~clock () =
+  let dir = "/dev/fd" in
+  if not (Sys.file_exists dir) then Alcotest.skip ();
+  let port = free_port () in
+  Eio.Switch.run @@ fun sw ->
+  start_server ~sw ~clock "Closed" (websocket_uri port);
+  let count () = Array.length (Sys.readdir dir) in
+  (* The server has released a connection when it closes it *)
+  ignore (close_connection ~port : _ list);
+  let before = count () in
+  for i = 1 to 10 do
+    with_connection ~port @@ fun connection ->
+    let open Lwt.Syntax in
+    let* accepted = upgrade ~port connection in
+    Alcotest.(check bool) "upgrade" true accepted;
+    if i mod 2 = 0 then check_handshake connection else Lwt.return_unit
+  done;
+  Alcotest.(check bool)
+    "file descriptors released" true
+    (eventually ~clock (fun () -> count () <= before))
+
+let websocket_misc ~clock =
+  [
+    ( "misc",
+      [
+        ("websocket bad frame", `Quick, websocket_bad_frame ~clock);
+        ("websocket reset", `Quick, websocket_reset ~clock);
+        ("websocket close", `Quick, websocket_close ~clock);
+        ("websocket closed", `Quick, websocket_closed ~clock);
+      ] );
+  ]
+
 let misc client = [ ("ping", `Quick, ping client) ]
 let misc client = [ ("misc", misc client) ]
 
@@ -93,7 +176,7 @@ let websocket_suite ~env () =
   end) in
   let tests = Websocket.suite () in
   Irmin_test.Store.run "irmin-server.ws" ~and_exit:false ~sleep:Eio_unix.sleep
-    ~misc:[]
+    ~misc:(websocket_misc ~clock)
     [ (`Quick, tests) ]
 
 let main ~env () =

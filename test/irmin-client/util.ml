@@ -170,7 +170,8 @@ let raw_connection uri =
 let send_command conn command =
   Conn.Request.write_header conn (Conn.Request.v_header ~command)
 
-(* Ask the websocket server on [port] to upgrade a connection. *)
+(* Ask the websocket server on [port] to upgrade a connection, and read the
+   whole response. *)
 let upgrade ?origin ~port (ic, oc) =
   let headers =
     [
@@ -187,8 +188,90 @@ let upgrade ?origin ~port (ic, oc) =
   in
   Lwt_io.write oc request >>= fun () ->
   Lwt_io.flush oc >>= fun () ->
-  timeout (fun () -> Lwt_io.read_line ic) >|= fun status ->
-  String.length status >= 12 && String.sub status 9 3 = "101"
+  let rec headers () =
+    Lwt_io.read_line ic >>= function "" -> Lwt.return_unit | _ -> headers ()
+  in
+  timeout (fun () ->
+      Lwt_io.read_line ic >>= fun status ->
+      headers () >|= fun () -> status)
+  >|= fun status -> String.length status >= 12 && String.sub status 9 3 = "101"
+
+(* The frames of a websocket client, as the library of the server writes and
+   reads them. The mask of the client does not matter here. *)
+let client_mode = Websocket_lwt_unix.Client (fun n -> String.make n '\000')
+
+(* Write [frames] at once. *)
+let write_frames oc frames =
+  let buf = Buffer.create 128 in
+  List.iter (Websocket_lwt_unix.write_frame_to_buf ~mode:client_mode buf) frames;
+  Lwt_io.write oc (Buffer.contents buf) >>= fun () -> Lwt_io.flush oc
+
+let write_frame oc frame = write_frames oc [ frame ]
+let close_frame = Websocket.Frame.close 1000
+
+let read_frame (ic, oc) =
+  timeout (Websocket_lwt_unix.make_read_frame ~mode:client_mode ic oc)
+
+(* The frames sent by the server, until it closes the connection. *)
+let read_frames connection =
+  let rec loop frames =
+    Lwt.try_bind
+      (fun () -> read_frame connection)
+      (fun frame -> loop (frame :: frames))
+      (function
+        | End_of_file -> Lwt.return (List.rev frames) | exn -> Lwt.fail exn)
+  in
+  loop []
+
+(* The handshake of a client, as the content of a websocket frame. *)
+let handshake_frame () =
+  let fingerprint = Conn.Handshake.V1.fingerprint (module Store) in
+  let buf = Buffer.create 64 in
+  Buffer.add_int64_be buf (Int64.of_int (String.length fingerprint));
+  Buffer.add_string buf fingerprint;
+  Websocket.Frame.create ~opcode:Binary ~content:(Buffer.contents buf) ()
+
+(* Upgrade a connection to the websocket server on [port], start a frame,
+   and then reset the connection. *)
+let reset_websocket ~port =
+  let fd = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+  Lwt.finalize
+    (fun () ->
+      Lwt_unix.connect fd Unix.(ADDR_INET (inet_addr_loopback, port))
+      >>= fun () ->
+      let ic = Lwt_io.of_fd ~mode:Input fd in
+      let oc = Lwt_io.of_fd ~mode:Output fd in
+      upgrade ~port (ic, oc) >>= fun accepted ->
+      Alcotest.(check bool) "upgrade" true accepted;
+      (* The server then waits for the length of this Binary frame *)
+      Lwt_io.write oc "\x82\x7e" >>= fun () ->
+      Lwt_io.flush oc >|= fun () ->
+      Lwt_unix.setsockopt_optint fd Unix.SO_LINGER (Some 0))
+    (fun () -> Lwt_unix.close fd)
+
+(* Send the handshake of a client on a websocket, and check its answer. *)
+let check_handshake ((_, oc) as connection) =
+  let handshake = handshake_frame () in
+  write_frame oc handshake >>= fun () ->
+  read_frame connection >|= fun (answer : Websocket.Frame.t) ->
+  Alcotest.(check string) "handshake answer" handshake.content answer.content
+
+(* The server has answered a Close frame of the client with the last of
+   its [frames]. *)
+let check_close frames =
+  let rec after_close = function
+    | [] -> None
+    | (frame : Websocket.Frame.t) :: rest ->
+        if frame.opcode = Websocket.Frame.Opcode.Close then Some rest
+        else after_close rest
+  in
+  let opcodes =
+    List.map (fun (frame : Websocket.Frame.t) ->
+        Websocket.Frame.Opcode.to_string frame.opcode)
+  in
+  Alcotest.(check (option (list string)))
+    "frames after Close" (Some [])
+    (Option.map opcodes (after_close frames))
 
 let with_connection ~port f =
   Lwt_eio.run_lwt @@ fun () ->
