@@ -1,3 +1,13 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-server**
+  - Dashboard: show the paths and the contents of the store as text, not as
+    HTML, send the paths as JSON strings and percent-encode them in the URLs,
+    send a content type with `nosniff`, and stop the dashboard with the
+    server (#2424, @balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

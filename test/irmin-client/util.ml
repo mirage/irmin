@@ -144,7 +144,7 @@ let wait_for_server ?server uri =
 (* Fork a server and wait until it is listening. The processes are forked
    before the first client is created: a child must not inherit the
    connections of the tests. *)
-let fork_server uri =
+let fork_server ?dashboard uri =
   (* The server of a run which was killed may still hold the Unix socket: it
      must not be taken for this one. *)
   (match Uri.scheme uri with
@@ -156,7 +156,7 @@ let fork_server uri =
     fork @@ fun () ->
     let () = Irmin.Backend.Watch.set_listen_dir_hook Irmin_watcher.hook in
     let conf = Irmin_mem.config () in
-    Lwt_main.run (Server.v ~uri conf >>= Server.serve)
+    Lwt_main.run (Server.v ?dashboard ~uri conf >>= Server.serve)
   in
   wait_for_server ~server uri;
   server
@@ -175,6 +175,8 @@ let free_port () =
 let loopback_uri scheme port =
   Uri.of_string (Fmt.str "%s://127.0.0.1:%d" scheme port)
 
+let dashboard_port = free_port ()
+
 let run_server s =
   let local scheme = loopback_uri scheme (free_port ()) in
   let kind, uri =
@@ -183,7 +185,20 @@ let run_server s =
     | `Unix_domain -> ("Unix_domain", unix_uri "test.sock")
     | `Tcp -> ("Tcp", local "tcp")
   in
-  (kind, fork_server uri, uri)
+  let dashboard =
+    match s with
+    | `Unix_domain -> Some dashboard_port
+    | `Tcp | `Websocket -> None
+  in
+  let server =
+    fork_server ?dashboard:(Option.map (fun p -> `TCP (`Port p)) dashboard) uri
+  in
+  Option.iter
+    (fun port ->
+      wait_for_server ~server
+        (Uri.of_string (Fmt.str "http://127.0.0.1:%d" port)))
+    dashboard;
+  (kind, server, uri)
 
 let websocket_uri port = loopback_uri "ws" port
 
