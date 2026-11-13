@@ -3,6 +3,8 @@
 ### Changed
 
 - Convert to direct-style with Eio (#2149, @patricoferris, @ElectreAAS, @clecat, @art-w)
+- **irmin-pack**, **irmin-pack-tools**
+  - Require `index` 1.7.0 or later (@balat)
 
 ## 3.11.0 (2025-06-19)
 
