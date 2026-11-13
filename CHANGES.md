@@ -4,6 +4,15 @@
 
 - Convert to direct-style with Eio (#2149, @patricoferris, @ElectreAAS, @clecat, @art-w)
 
+## 3.12.0 (unreleased)
+
+### Fixed
+
+- **irmin-client**
+  - Stop the watches of the Unix client when the connection to the server is
+    lost. They were looping for ever without yielding to the scheduler
+    (@balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

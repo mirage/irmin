@@ -20,8 +20,6 @@ open Lwt.Syntax
 open Lwt.Infix
 include Client_intf
 
-exception Continue
-
 module Conf = struct
   include Irmin.Backend.Conf
 
@@ -331,49 +329,59 @@ struct
 
       type watch = t
 
-      let watch t ?init f =
-        Lwt_eio.run_lwt @@ fun () ->
-        let f key diff = Lwt_eio.run_eio @@ fun () -> f key diff in
-        let* t = dup t in
-        let* () =
-          request_lwt t (module Watch) init >|= Error.unwrap "Branch.watch"
+      (* [recv] fails when the connection is lost or when the stream cannot
+         be decoded. The watch cannot go on in both cases. *)
+      let watch_loop t recv f =
+        let stop exn =
+          (* Nothing to do when the watch has been closed by its owner *)
+          if t.Client.closed then Lwt.return_unit
+          else (
+            (match exn with
+            | End_of_file -> [%log.debug "watch: connection closed"]
+            | exn -> [%log.err "watch: stopping on %a" Fmt.exn exn]);
+            Lwt.catch
+              (fun () -> Client.close t)
+              (fun exn ->
+                [%log.err "watch: cannot close the connection: %a" Fmt.exn exn];
+                Lwt.return_unit))
+        in
+        let notify diff =
+          Lwt.catch
+            (fun () -> f diff)
+            (fun exn ->
+              [%log.err "watch: callback failed with %a" Fmt.exn exn];
+              Lwt.return_unit)
         in
         let rec loop () =
-          if t.closed || Conn.is_closed t.conn then Lwt.return_unit
+          if t.Client.closed || Conn.is_closed t.conn then Lwt.return_unit
           else
-            Lwt.catch
-              (fun () ->
-                Lwt.catch
-                  (fun () -> Client.recv_branch_diff t)
-                  (fun _ -> raise Continue)
-                >>= fun (key, diff) -> f key diff >>= loop)
-              (function _ -> loop ())
+            Lwt.try_bind
+              (fun () -> recv t)
+              (fun diff -> notify diff >>= loop)
+              stop
         in
-        Lwt.async loop;
-        Lwt.return t
+        Lwt.async loop
+
+      let watch t ?init f =
+        Lwt_eio.run_lwt @@ fun () ->
+        let f (key, diff) = Lwt_eio.run_eio @@ fun () -> f key diff in
+        let* t = dup t in
+        let+ () =
+          request_lwt t (module Watch) init >|= Error.unwrap "Branch.watch"
+        in
+        watch_loop t Client.recv_branch_diff f;
+        t
 
       let watch_key t key ?init f =
         Lwt_eio.run_lwt @@ fun () ->
         let f x = Lwt_eio.run_eio @@ fun () -> f x in
         let* t = dup t in
-        let* () =
+        let+ () =
           request_lwt t (module Watch_key) (init, key)
           >|= Error.unwrap "Branch.watch_key"
         in
-        let rec loop () =
-          if t.closed || Conn.is_closed t.conn then Lwt.return_unit
-          else
-            Lwt.catch
-              (fun () ->
-                Lwt.catch
-                  (fun () -> Client.recv_branch_key_diff t)
-                  (fun _ -> raise Continue)
-                >>= f
-                >>= loop)
-              (function _ -> loop ())
-        in
-        Lwt.async loop;
-        Lwt.return t
+        watch_loop t Client.recv_branch_key_diff f;
+        t
 
       let unwatch _t watch =
         Lwt_eio.run_lwt @@ fun () ->
