@@ -5,6 +5,8 @@
 - **irmin-server**, **irmin-client**
   - Add a `max_message_size` option to `Irmin_server_unix.Make(_).v`,
     `Irmin_client.config` and `connect` (@balat)
+- **irmin-cli**
+  - Add the `--max-message-size` option to `irmin server` (@balat)
 
 ### Changed
 
