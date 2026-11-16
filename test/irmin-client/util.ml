@@ -348,6 +348,42 @@ let with_watch_server name answer f =
   >>= fun server ->
   Lwt.finalize (fun () -> f uri) (fun () -> Lwt_io.shutdown_server server)
 
+(* Run [f] with a server on [sockaddr], in the test process. The server reads
+   the handshake of a client, then gives the socket and its output channel to
+   [refuse], which must not accept it. [f] gets a promise telling whether the
+   client has then closed its side of the connection. Only the first
+   connection is looked at. *)
+let with_handshake_server sockaddr refuse f =
+  let closed, set_closed = Lwt.wait () in
+  let handler _ fd =
+    let set_closed result =
+      if Lwt.is_sleeping closed then Lwt.wakeup_later_result set_closed result
+    in
+    let ic = Lwt_io.of_fd ~mode:Lwt_io.input fd
+    and oc = Lwt_io.of_fd ~mode:Lwt_io.output fd in
+    Lwt.try_bind
+      (fun () ->
+        Lwt_io.BE.read_int64 ic >>= fun length ->
+        let handshake = Bytes.create (Int64.to_int length) in
+        Lwt_io.read_into_exactly ic handshake 0 (Bytes.length handshake)
+        >>= fun () ->
+        refuse fd oc >>= fun () ->
+        Lwt.catch
+          (fun () -> Lwt_io.read_char ic >|= fun (_ : char) -> false)
+          (function End_of_file -> Lwt.return_true | exn -> Lwt.reraise exn))
+      (fun closed ->
+        set_closed (Ok closed);
+        Lwt.return_unit)
+      (fun exn ->
+        set_closed (Error exn);
+        Lwt.return_unit)
+  in
+  (match sockaddr with
+  | Unix.ADDR_UNIX path when Sys.file_exists path -> Unix.unlink path
+  | _ -> ());
+  Lwt_io.establish_server_with_client_socket sockaddr handler >>= fun server ->
+  Lwt.finalize (fun () -> f closed) (fun () -> Lwt_io.shutdown_server server)
+
 let suite client all =
   List.map
     (fun (name, speed, f) ->

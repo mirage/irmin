@@ -460,6 +460,67 @@ let watch_refused () =
   Alcotest.(check bool) "connection closed" true closed;
   Client.Repo.close repo
 
+(* The answers of a server which refuses the handshake of a client, with the
+   error they give to the client. *)
+let refusals =
+  let answer oc length s =
+    let* () = Lwt_io.BE.write_int64 oc length in
+    let* () = Lwt_io.write oc s in
+    Lwt_io.flush oc
+  in
+  let error msg = function Error.Error m -> m = msg | _ -> false in
+  [
+    ( "end of connection",
+      (fun fd _ ->
+        (* The server still sees the client closing its side *)
+        Lwt_unix.shutdown fd Unix.SHUTDOWN_SEND;
+        Lwt.return_unit),
+      error "invalid handshake" );
+    ( "other fingerprint",
+      (fun _ oc ->
+        let s = "V1 another store" in
+        answer oc (Int64.of_int (String.length s)) s),
+      error "invalid handshake" );
+    ( "oversized answer",
+      (fun _ oc -> answer oc Int64.max_int ""),
+      error "invalid handshake" );
+    ( "no answer",
+      (fun _ _ -> Lwt.return_unit),
+      error "unable to connect to server" );
+  ]
+
+(* A client which cannot connect closes its connection. *)
+let failed_handshake address refuse expected () =
+  let sockaddr, uri = address () in
+  with_handshake_server sockaddr refuse @@ fun closed ->
+  let* () =
+    fails "handshake accepted" expected (fun () ->
+        Client.Repo.v (Irmin_client_unix.config uri))
+  in
+  let+ closed = timeout (fun () -> closed) in
+  Alcotest.(check bool) "connection closed" true closed
+
+let failed_handshakes =
+  let unix () =
+    let uri = unix_uri "handshake.sock" in
+    (Unix.ADDR_UNIX (Uri.path uri), uri)
+  and tcp () =
+    let port = free_port () in
+    ( Unix.ADDR_INET (Unix.inet_addr_loopback, port),
+      Uri.of_string (Fmt.str "tcp://127.0.0.1:%d" port) )
+  in
+  List.concat_map
+    (fun (name, refuse, expected) ->
+      [
+        ( "failed handshake, " ^ name,
+          `Quick,
+          failed_handshake unix refuse expected );
+        ( "failed handshake over TCP, " ^ name,
+          `Quick,
+          failed_handshake tcp refuse expected );
+      ])
+    refusals
+
 let misc =
   let branch_diff_t =
     Irmin.Type.pair Store.Branch.t (Irmin.Diff.t Store.commit_key_t)
@@ -488,6 +549,7 @@ let misc =
         ~expected:(`Added (commit "b")) );
     ("watch refused", `Quick, watch_refused);
   ]
+  @ failed_handshakes
 
 let misc = [ ("misc", misc) ]
 

@@ -175,13 +175,16 @@ struct
     in
     let* ic, oc = IO.connect ~ctx client in
     let conn = Conn.v ~max_message_size ic oc in
-    let+ ok = Conn.Handshake.V1.send (module Store) conn in
-    if not ok then Error.raise_error "invalid handshake"
-    else
-      let t =
-        Client.{ config; ctx; conn; closed = false; lock = Lwt_mutex.create () }
-      in
-      t
+    let t =
+      Client.{ config; ctx; conn; closed = false; lock = Lwt_mutex.create () }
+    in
+    (* The connection is closed when it is not given to the caller *)
+    Lwt.catch
+      (fun () ->
+        let+ ok = Conn.Handshake.V1.send (module Store) conn in
+        if not ok then Error.raise_error "invalid handshake";
+        t)
+      (Client.close_and_fail t)
 
   and reconnect t =
     let* () = Client.close_quietly t in
