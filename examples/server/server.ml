@@ -19,7 +19,10 @@ open Lwt.Syntax
 module Server =
   Irmin_server_unix.Make_ext (Irmin_server.Conn.Codec.Bin) (Config.Store)
 
-let main () =
+let main ~sw () =
+  (* The watches of the clients need a switch for their notifications. A store
+     watching a directory would use [set_listen_dir_eio_hook] instead. *)
+  Irmin.Backend.Watch.set_watch_switch sw;
   let config = Irmin_mem.config () in
   let dashboard = `TCP (`Port 1234) in
   let uri = Config.uri in
@@ -30,4 +33,5 @@ let main () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Eio.Switch.run @@ fun sw -> main ~sw ()
