@@ -44,7 +44,17 @@ module type S = sig
       the handshake, or longer than [Sys.max_string_length]. *)
 
   val serve : ?stop:unit Lwt.t -> t -> unit Lwt.t
-  (** Run the server *)
+  (** Run the server.
+
+      The notifications of the watches run on the switch given to
+      {!Irmin.Backend.Watch.set_watch_switch}, which must be called before. The
+      notifications are written with Lwt: the switch must run in the domain of
+      the server, inside [Lwt_eio.with_event_loop], and outlive the server.
+
+      A store watching a directory, such as the on-disk stores of irmin-fs and
+      irmin-git, also needs a listen hook:
+      {!Irmin.Backend.Watch.set_listen_dir_eio_hook} sets both, usually with
+      [Irmin_watcher.hook]. *)
 
   val commands : (string, Command.t) Hashtbl.t
   (** A table mapping commands to command names *)
