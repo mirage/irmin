@@ -171,13 +171,16 @@ struct
     Conn.Handshake.V1.check_max_message_size (module Store) max_message_size;
     let* ic, oc = IO.connect ~ctx client in
     let conn = Conn.v ~max_message_size ic oc in
-    let+ ok = Conn.Handshake.V1.send (module Store) conn in
-    if not ok then Error.raise_error "invalid handshake"
-    else
-      let t =
-        Client.{ config; ctx; conn; closed = false; lock = Lwt_mutex.create () }
-      in
-      t
+    let t =
+      Client.{ config; ctx; conn; closed = false; lock = Lwt_mutex.create () }
+    in
+    (* The connection is closed when it is not given to the caller *)
+    Lwt.catch
+      (fun () ->
+        let+ ok = Conn.Handshake.V1.send (module Store) conn in
+        if not ok then Error.raise_error "invalid handshake";
+        t)
+      (Client.close_and_fail t)
 
   and reconnect t =
     let* () = Lwt.catch (fun () -> Client.close t) (fun _ -> Lwt.return_unit) in
@@ -389,22 +392,27 @@ struct
         in
         Lwt.async loop
 
-      let watch t ?init f =
+      (* A watch has its own connection, which is closed when the watch
+         cannot be set. *)
+      let with_connection t set =
         let* t = dup t in
+        let+ () = Lwt.catch (fun () -> set t) (Client.close_and_fail t) in
+        t
+
+      let watch t ?init f =
+        with_connection t @@ fun t ->
         let+ () =
           request t (module Watch) init >|= Error.unwrap "Branch.watch"
         in
-        watch_loop t Client.recv_branch_diff (fun (key, diff) -> f key diff);
-        t
+        watch_loop t Client.recv_branch_diff (fun (key, diff) -> f key diff)
 
       let watch_key t key ?init f =
-        let* t = dup t in
+        with_connection t @@ fun t ->
         let+ () =
           request t (module Watch_key) (init, key)
           >|= Error.unwrap "Branch.watch_key"
         in
-        watch_loop t Client.recv_branch_key_diff f;
-        t
+        watch_loop t Client.recv_branch_key_diff f
 
       let unwatch _t watch =
         (* A watch which has lost its connection is already closed *)

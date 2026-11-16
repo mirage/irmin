@@ -517,6 +517,27 @@ let websocket_closed () =
     let+ released = eventually (fun () -> count () <= before) in
     Alcotest.(check bool) "file descriptors released" true released
 
+(* A client for another kind of store: the server refuses its handshake. *)
+module Other_client =
+  Irmin_client_unix.Make (Irmin_mem.KV.Make (Irmin.Contents.Json_value))
+
+(* A client which cannot connect keeps nothing of its connection. The file
+   descriptors are only counted where [/dev/fd] gives them. *)
+let failed_handshake () =
+  let dir = "/dev/fd" in
+  if not (Sys.file_exists dir) then Lwt.return_unit
+  else
+    let count () = Array.length (Sys.readdir dir) in
+    let connect () =
+      fails "handshake accepted"
+        (function Error.Error _ -> true | _ -> false)
+        (fun () -> Other_client.Repo.v (Irmin_client_unix.config origin_uri))
+    in
+    let before = count () in
+    let* () = Lwt_list.iter_s connect (List.init 5 (fun _ -> ())) in
+    let+ released = eventually (fun () -> count () <= before) in
+    Alcotest.(check bool) "file descriptors released" true released
+
 let misc =
   [
     ("ping", `Quick, ping);
@@ -536,6 +557,7 @@ let misc =
     ("websocket origin", `Quick, websocket_origin);
     ("websocket bad frame", `Quick, websocket_bad_frame);
     ("websocket closed", `Quick, websocket_closed);
+    ("failed handshake", `Quick, failed_handshake);
   ]
 
 let misc = [ ("misc", misc) ]
