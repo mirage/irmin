@@ -50,6 +50,36 @@ let unix_server = run_server `Unix_domain
 let tcp_server = run_server `Tcp
 let websocket_server = run_server `Websocket
 let unix_watcher = fork_watcher (unix_uri "watch.sock")
+let websocket_watcher = fork_watcher (websocket_uri (free_port ()))
+
+(* The clients of servers which are only started by their tests. *)
+let bad_server_connector =
+  fork_connector @@ fun uri ->
+  Lwt.catch
+    (fun () ->
+      let* repo = Client.Repo.v (Irmin_client_unix.config uri) in
+      Client.Repo.close repo)
+    (function
+      | Irmin_client_unix.Error.Error _ -> Lwt.return_unit | exn -> Lwt.fail exn)
+
+let closing_server_connector =
+  fork_connector @@ fun uri ->
+  let connect () =
+    let* repo = Client.Repo.v (Irmin_client_unix.config uri) in
+    Client.Repo.close repo
+  in
+  (* The first connection opens what is kept for the next ones *)
+  let* () = connect () in
+  let* () = Lwt_unix.sleep 0.2 in
+  let before = open_fds () in
+  let* () = connect () in
+  let+ closed = eventually (fun () -> open_fds () = before) in
+  if not closed then
+    Fmt.failwith "File descriptors: %a before, %a after"
+      Fmt.(option int)
+      before
+      Fmt.(option int)
+      (open_fds ())
 
 module Unix_socket = Make (struct
   let kind, _, uri = unix_server
@@ -180,6 +210,50 @@ let watch_refused () =
   Alcotest.(check bool) "connection closed" true closed;
   Client.Repo.close repo
 
+(* Run [connector] against a websocket server handling its connections
+   with [handler ~stop], where [stop] is resolved once [connector] has
+   exited. *)
+let with_websocket_server (connector, go) handler =
+  let port = free_port () in
+  let stop, stopped = Lwt.wait () in
+  let server =
+    Websocket_lwt_unix.establish_standard_server ~stop
+      ~mode:(`TCP (`Port port))
+      ~check_request:(fun _ -> true)
+      ~on_exn:(fun exn -> Logs.debug (fun l -> l "Server: %a" Fmt.exn exn))
+      (handler ~stop)
+  in
+  let* status =
+    Lwt.finalize
+      (fun () ->
+        let* () = start_connector go port in
+        timeout (fun () -> wait_child connector))
+      (fun () ->
+        Lwt.wakeup_later stopped ();
+        Lwt_unix.close go)
+  in
+  let+ () = server in
+  Alcotest.(check bool) "client exit" true (status = Unix.WEXITED 0)
+
+(* A frame which is not valid stops the connection of a client, not its
+   process. *)
+let websocket_bad_server () =
+  with_websocket_server bad_server_connector @@ fun ~stop:_ client ->
+  let* _ = Websocket_lwt_unix.Connected_client.recv client in
+  Websocket_lwt_unix.Connected_client.send client bad_frame
+
+(* The socket of a client is closed with the client, even after a close
+   frame of its server. *)
+let websocket_closing_server () =
+  with_websocket_server closing_server_connector @@ fun ~stop client ->
+  let module C = Websocket_lwt_unix.Connected_client in
+  (* The handshake of the client is sent back to it *)
+  let* handshake = C.recv client in
+  let* () = C.send client (binary_frame handshake.content) in
+  let* () = C.send client close_frame in
+  (* The connection stays open: only the client can close its socket *)
+  stop
+
 let misc =
   let branch_diff_t =
     Irmin.Type.pair Store.Branch.t (Irmin.Diff.t Store.commit_key_t)
@@ -199,6 +273,11 @@ let misc =
         ~skipped:(`Removed (commit "a"))
         ~expected:(`Added (commit "b")) );
     ("watch refused", `Quick, watch_refused);
+    ( "watch and lost websocket server",
+      `Quick,
+      watch_lost_server websocket_watcher );
+    ("websocket bad server", `Quick, websocket_bad_server);
+    ("websocket closing server", `Quick, websocket_closing_server);
   ]
 
 let misc = [ ("misc", misc) ]

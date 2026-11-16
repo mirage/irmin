@@ -200,7 +200,10 @@ let fork_watcher uri =
         Lwt_unix.write ready (Bytes.make 1 'r') 0 1 >>= fun (_ : int) ->
         Lwt_unix.read gone (Bytes.create 1) 0 1 >>= fun (_ : int) ->
         (* The end of the connection is seen before the watch is removed *)
-        Lwt_unix.sleep 0.2 >>= fun () -> Client.unwatch watch )
+        Lwt_unix.sleep 0.2 >>= fun () ->
+        Client.unwatch watch >>= fun () ->
+        (* What is still running for the connection must end well *)
+        Lwt_unix.sleep 0.2 )
   in
   Unix.close ready_w;
   Unix.close gone_r;
@@ -225,6 +228,43 @@ let websocket_uri port = loopback_uri "ws" port
 
 (* A test waiting for a peer must fail rather than hang. *)
 let timeout f = Lwt_unix.with_timeout 20. f
+
+(* A control frame cannot be this long. *)
+let bad_frame =
+  Websocket.Frame.create ~opcode:Ping ~content:(String.make 200 'x') ()
+
+let binary_frame content = Websocket.Frame.create ~opcode:Binary ~content ()
+let close_frame = Websocket.Frame.close 1000
+
+(* A process running [f uri] once told the port of the websocket server
+   [uri]. The port is only chosen by the test, just before the server
+   listens. *)
+let fork_connector f =
+  let go_r, go_w = Unix.pipe () in
+  let connector =
+    fork @@ fun () ->
+    Unix.close go_w;
+    let port = int_of_string (input_line (Unix.in_channel_of_descr go_r)) in
+    let uri = websocket_uri port in
+    wait_for_server uri;
+    Lwt_main.run
+      ( f uri >>= fun () ->
+        (* What is still running for the connection must end well *)
+        Lwt_unix.sleep 0.2 )
+  in
+  Unix.close go_r;
+  (connector, Lwt_unix.of_unix_file_descr go_w)
+
+(* Tell [connector] the port of its server. *)
+let start_connector go port =
+  let line = Fmt.str "%d\n" port in
+  Lwt_unix.write_string go line 0 (String.length line) >|= fun (_ : int) -> ()
+
+(* The number of file descriptors of the process, if the system tells it. *)
+let open_fds () =
+  if Sys.file_exists "/proc/self/fd" then
+    Some (Array.length (Sys.readdir "/proc/self/fd"))
+  else None
 
 (* [f] must fail with an exception accepted by [expected]. The timeout is
    not given to [expected]: a test which does not end fails. *)

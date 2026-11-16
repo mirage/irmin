@@ -13,7 +13,7 @@ depends: [
   "irmin-server" {= version}
   "irmin-cli" {= version}
   "ipaddr"
-  "websocket-lwt-unix"
+  "websocket-lwt-unix" {>= "2.15"}
   "conduit-lwt-unix" {>= "6.0.0"}
   "lwt-dllist"
   "js_of_ocaml-lwt"

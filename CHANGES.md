@@ -6,6 +6,8 @@
   - Stop the watches of the Unix client when the connection to the server is
     lost. They were looping for ever without yielding to the scheduler. Close
     the connection of a watch which cannot be set (#2422, @balat)
+  - Do not stop the program of a Unix client on a websocket error, and close
+    its websocket when the client is closed (#2428, @balat)
 
 - **irmin-server**
   - Return an error instead of raising `Assert_failure` when a binary message
