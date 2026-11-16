@@ -5,6 +5,8 @@
 - **irmin-server**
   - Add an `allowed_origins` option to `Irmin_server_unix.Make(_).v`, and
     `Irmin_server_unix.Origin` to write the origins (@balat)
+- **irmin-cli**
+  - Add the `--allowed-origin` option to `irmin server` (@balat)
 
 ### Changed
 

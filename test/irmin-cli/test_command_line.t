@@ -124,3 +124,16 @@ Show documentation
       log         List commits
   
   See `irmin help <command>` for more information on a specific command.
+
+The server refuses an option which is not valid
+  $ irmin server --allowed-origin example.org
+  irmin: option '--allowed-origin': "example.org" is not an origin, like
+         https://example.org
+  Usage: irmin server [OPTION]…
+  Try 'irmin server --help' or 'irmin --help' for more information.
+  [1]
+
+The server gets a valid origin, and ignores it outside the ws and wss schemes
+(then it fails on the unknown scheme)
+  $ irmin server --root ./test --uri foo://localhost --allowed-origin HTTPS://Example.ORG/ 2>&1 | head -n 1
+  irmin: [WARNING] The allowed origins are ignored: they only apply to the ws and wss schemes
