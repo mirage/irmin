@@ -52,6 +52,12 @@ let unix_server = run_server `Unix_domain
 let tcp_server = run_server `Tcp
 let websocket_server = run_server `Websocket
 let unix_watcher = fork_watcher (unix_uri "watch.sock")
+let websocket_uri port = Uri.of_string (Fmt.str "ws://127.0.0.1:%d" port)
+let websocket_watcher = fork_watcher (websocket_uri (free_port ()))
+
+(* A client for a server which is only started by its test. *)
+let bad_server_port = free_port ()
+let connector, connector_go = fork_connector (websocket_uri bad_server_port)
 
 (* A server with a small limit on the size of the messages. *)
 let small_size = 4096
@@ -60,7 +66,7 @@ let (_ : int) = fork_server ~max_message_size:small_size small_uri
 
 (* A websocket server accepting the pages of one origin. *)
 let origin_port = free_port ()
-let origin_uri = Uri.of_string (Fmt.str "ws://127.0.0.1:%d" origin_port)
+let origin_uri = websocket_uri origin_port
 
 let origin_server =
   fork_server ~allowed_origins:[ "HTTPS://Allowed.Example:443/" ] origin_uri
@@ -121,6 +127,25 @@ let watch_lost_server { server; watcher; ready; server_gone } () =
           kill_quietly watcher;
           Alcotest.fail "The watch keeps the scheduler busy without its server"
       | exn -> Lwt.fail exn)
+
+(* A frame which is not valid stops the connection of a client, not its
+   process. *)
+let websocket_bad_server () =
+  let stop, stopped = Lwt.wait () in
+  let server =
+    Websocket_lwt_unix.establish_standard_server ~stop
+      ~mode:(`TCP (`Port bad_server_port))
+      ~check_request:(fun _ -> true)
+      ~on_exn:(fun exn -> Logs.debug (fun l -> l "Server: %a" Fmt.exn exn))
+      (fun client ->
+        let* _ = Websocket_lwt_unix.Connected_client.recv client in
+        Websocket_lwt_unix.Connected_client.send client bad_frame)
+  in
+  let* (_ : int) = Lwt_unix.write connector_go (Bytes.make 1 'g') 0 1 in
+  let* _, status = timeout (fun () -> Lwt_unix.waitpid [] connector) in
+  Lwt.wakeup_later stopped ();
+  let+ () = server in
+  Alcotest.(check bool) "client exit" true (status = Unix.WEXITED 0)
 
 (* Connections over the pipes of [Lwt_io]. *)
 module Pipe_io = struct
@@ -496,6 +521,10 @@ let misc =
   [
     ("ping", `Quick, ping);
     ("watch and lost server", `Quick, watch_lost_server unix_watcher);
+    ( "watch and lost websocket server",
+      `Quick,
+      watch_lost_server websocket_watcher );
+    ("websocket bad server", `Quick, websocket_bad_server);
     ("message size", `Quick, message_size);
     ("oversized request", `Quick, oversized_request);
     ("client message size", `Quick, client_message_size);

@@ -115,7 +115,9 @@ let fork_watcher uri =
           >>= fun watch ->
           Lwt_unix.write ready (Bytes.make 1 'r') 0 1 >>= fun (_ : int) ->
           Lwt_unix.read gone (Bytes.create 1) 0 1 >>= fun (_ : int) ->
-          Client.unwatch watch )
+          Client.unwatch watch >>= fun () ->
+          (* What is still running for the connection must end well *)
+          Lwt_unix.sleep 0.2 )
   | watcher ->
       Unix.close ready_w;
       Unix.close gone_r;
@@ -139,6 +141,35 @@ let free_port () =
       | Unix.ADDR_UNIX _ -> failwith "free_port: not an internet address")
 
 let dashboard_port = free_port ()
+
+(* A control frame cannot be this long. *)
+let bad_frame =
+  Websocket.Frame.create ~opcode:Ping ~content:(String.make 200 'x') ()
+
+(* A process connecting a client to [uri] once told to. Only the connection
+   may fail. *)
+let fork_connector uri =
+  let go_r, go_w = Unix.pipe () in
+  match Lwt_unix.fork () with
+  | 0 ->
+      in_child @@ fun () ->
+      Unix.close go_w;
+      let (_ : int) = Unix.read go_r (Bytes.create 1) 0 1 in
+      wait_for_server uri;
+      Lwt_main.run
+        ( Lwt.catch
+            (fun () ->
+              Client.Repo.v (Irmin_client_unix.config uri) >>= Client.Repo.close)
+            (function
+              | Irmin_client_unix.Error.Error _ -> Lwt.return_unit
+              | exn -> Lwt.fail exn)
+        >>= fun () ->
+          (* What is still running for the connection must end well *)
+          Lwt_unix.sleep 0.2 )
+  | connector ->
+      Unix.close go_r;
+      at_exit (fun () -> kill_quietly connector);
+      (connector, Lwt_unix.of_unix_file_descr go_w)
 
 let run_server s =
   let uri scheme =
