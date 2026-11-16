@@ -126,7 +126,11 @@ end = struct
             path
         | `In_place ->
             if Conf.readonly config then raise Irmin_pack.RO_not_allowed;
-            Eio.Path.(fs / Conf.root config)
+            let root = Eio.Path.(fs / Conf.root config) in
+            (* Index opens its files through symbolic links: remove them, so
+               that the fresh index does not truncate their targets. *)
+            Io.unlink_symlinks Eio.Path.(root / "index") |> Errs.raise_if_error;
+            root
       in
       let log_size = Conf.index_log_size config in
       [%log.app
