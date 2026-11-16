@@ -37,6 +37,8 @@
   - Stop the watches of the Unix client when the connection to the server is
     lost. They were looping for ever without yielding to the scheduler. Close
     the connection of a watch which cannot be set (#2431, @balat)
+  - Close the connection of the client when its handshake fails (#2438,
+    @balat)
 - **irmin-server**
   - Return an error instead of raising `Assert_failure` when a binary message
     has more bytes than its value (#2431, @balat)
