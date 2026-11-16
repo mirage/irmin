@@ -50,6 +50,8 @@
   - Stop the watches of the Unix client when the connection to the server is
     lost. They were looping for ever without yielding to the scheduler
     (@balat)
+  - Do not stop the program of a Unix client on a websocket error, and close
+    its websocket when the client is closed (@balat)
 
 ## 3.11.0 (2025-06-19)
 

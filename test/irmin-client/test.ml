@@ -450,6 +450,36 @@ let websocket_bad_frame ~clock () =
     "server still running" true
     (with_connection ~port (upgrade ~port))
 
+(* A frame which is not valid stops the connection of a client, not its
+   program. *)
+let websocket_bad_server ~clock () =
+  let port = free_port () in
+  (* A control frame cannot be this long *)
+  let frame =
+    Websocket.Frame.create ~opcode:Ping ~content:(String.make 200 'x') ()
+  in
+  let stop, set_stop = Lwt.wait () in
+  Eio.Switch.run @@ fun sw ->
+  Eio.Switch.on_release sw (fun () -> Lwt.wakeup_later set_stop ());
+  Eio.Fiber.fork_daemon ~sw (fun () ->
+      Lwt_eio.run_lwt (fun () ->
+          Websocket_lwt_unix.establish_standard_server ~stop
+            ~mode:(`TCP (`Port port))
+            ~check_request:(fun _ -> true)
+            ~on_exn:(fun exn ->
+              Logs.debug (fun l -> l "Server: %a" Fmt.exn exn))
+            (fun client ->
+              let open Lwt.Syntax in
+              let* _ = Websocket_lwt_unix.Connected_client.recv client in
+              Websocket_lwt_unix.Connected_client.send client frame));
+      `Stop_daemon);
+  wait_for_server ~clock (websocket_uri port);
+  check_raises "connected"
+    (function Error.Error _ -> true | _ -> false)
+    (fun () -> Client.Repo.v (Irmin_client_unix.config (websocket_uri port)));
+  (* What is still running for the connection must end well *)
+  Eio.Time.sleep clock 0.2
+
 (* Wait until [f ()] holds, for a few seconds. *)
 let rec eventually ~clock ?(tries = 50) f =
   f ()
@@ -491,6 +521,7 @@ let misc ~uri ~clock client =
     ("websocket origin", `Quick, websocket_origin ~clock);
     ("websocket bad frame", `Quick, websocket_bad_frame ~clock);
     ("websocket closed", `Quick, websocket_closed ~clock);
+    ("websocket bad server", `Quick, websocket_bad_server ~clock);
   ]
 
 let misc ~uri ~clock client = [ ("misc", misc ~uri ~clock client) ]
