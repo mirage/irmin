@@ -174,13 +174,16 @@ struct
     Conn.Handshake.V1.check_max_message_size (module Store) max_message_size;
     let* ic, oc = IO.connect ~ctx client in
     let conn = Conn.v ~max_message_size ic oc in
-    let+ ok = Conn.Handshake.V1.send (module Store) conn in
-    if not ok then Error.raise_error "invalid handshake"
-    else
-      let t =
-        Client.{ config; ctx; conn; closed = false; lock = Lwt_mutex.create () }
-      in
-      t
+    let t =
+      Client.{ config; ctx; conn; closed = false; lock = Lwt_mutex.create () }
+    in
+    (* The connection is closed when it is not given to the caller *)
+    Lwt.catch
+      (fun () ->
+        let+ ok = Conn.Handshake.V1.send (module Store) conn in
+        if not ok then Error.raise_error "invalid handshake";
+        t)
+      (Client.close_and_fail t)
 
   and reconnect t =
     let* () = Lwt.catch (fun () -> Client.close t) (fun _ -> Lwt.return_unit) in
@@ -388,26 +391,30 @@ struct
         in
         Lwt.async loop
 
-      let watch t ?init f =
+      (* A watch has its own connection, which is closed when the watch
+         cannot be set. *)
+      let with_connection t set =
         Lwt_eio.run_lwt @@ fun () ->
-        let f (key, diff) = Lwt_eio.run_eio @@ fun () -> f key diff in
         let* t = dup t in
+        let+ () = Lwt.catch (fun () -> set t) (Client.close_and_fail t) in
+        t
+
+      let watch t ?init f =
+        let f (key, diff) = Lwt_eio.run_eio @@ fun () -> f key diff in
+        with_connection t @@ fun t ->
         let+ () =
           request_lwt t (module Watch) init >|= Error.unwrap "Branch.watch"
         in
-        watch_loop t Client.recv_branch_diff f;
-        t
+        watch_loop t Client.recv_branch_diff f
 
       let watch_key t key ?init f =
-        Lwt_eio.run_lwt @@ fun () ->
         let f x = Lwt_eio.run_eio @@ fun () -> f x in
-        let* t = dup t in
+        with_connection t @@ fun t ->
         let+ () =
           request_lwt t (module Watch_key) (init, key)
           >|= Error.unwrap "Branch.watch_key"
         in
-        watch_loop t Client.recv_branch_key_diff f;
-        t
+        watch_loop t Client.recv_branch_key_diff f
 
       let unwatch _t watch =
         Lwt_eio.run_lwt @@ fun () ->

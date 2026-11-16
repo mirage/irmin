@@ -507,6 +507,30 @@ let websocket_closed ~clock () =
       "file descriptors released" true
       (eventually ~clock (fun () -> count () <= before)))
 
+(* A client for another kind of store: the server refuses its handshake. *)
+module Other_client =
+  Irmin_client_unix.Make (Irmin_mem.KV.Make (Irmin.Contents.Json_value))
+
+(* A client which cannot connect keeps nothing of its connection. The file
+   descriptors are only counted where [/dev/fd] gives them. *)
+let failed_handshake ~clock () =
+  let dir = "/dev/fd" in
+  if Sys.file_exists dir then (
+    let port = free_port () in
+    Eio.Switch.run @@ fun sw ->
+    start_server ~sw ~clock "Handshake" (websocket_uri port);
+    let count () = Array.length (Sys.readdir dir) in
+    let before = count () in
+    for _ = 1 to 5 do
+      check_raises "handshake accepted"
+        (function Error.Error _ -> true | _ -> false)
+        (fun () ->
+          Other_client.Repo.v (Irmin_client_unix.config (websocket_uri port)))
+    done;
+    Alcotest.(check bool)
+      "file descriptors released" true
+      (eventually ~clock (fun () -> count () <= before)))
+
 let misc ~uri ~clock client =
   [
     ("ping", `Quick, ping client);
@@ -522,6 +546,7 @@ let misc ~uri ~clock client =
     ("websocket bad frame", `Quick, websocket_bad_frame ~clock);
     ("websocket closed", `Quick, websocket_closed ~clock);
     ("websocket bad server", `Quick, websocket_bad_server ~clock);
+    ("failed handshake", `Quick, failed_handshake ~clock);
   ]
 
 let misc ~uri ~clock client = [ ("misc", misc ~uri ~clock client) ]

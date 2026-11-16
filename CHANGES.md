@@ -52,6 +52,8 @@
     (@balat)
   - Do not stop the program of a Unix client on a websocket error, and close
     its websocket when the client is closed (@balat)
+  - Close the connection when the handshake fails or when a watch cannot be
+    set (@balat)
 
 ## 3.11.0 (2025-06-19)
 
