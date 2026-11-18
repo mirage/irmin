@@ -14,6 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+(* Most stores live in [_build], relative to the current directory, and
+   Irmin_pack_unix does not create missing parent directories. *)
+let () = if not (Sys.file_exists "_build") then Sys.mkdir "_build" 0o755
+
 let () =
   Lwt_main.run
   @@ Irmin_test.Store.run "irmin-pack" ~misc:Test_pack.misc
