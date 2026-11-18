@@ -4,7 +4,7 @@ This folder contains several tools meant to provide usefull ways to debug and du
 Currently, there are the following tools:
 - [`ppcf`](#ppcf), a json printer for control files
 - [`ppidx`](#ppidx), a json printer for index folders
-- [`tezos-explorer`](#tezos-explorer), a notty ui for a fast exploration of tezos stores
+- [`tezos-explorer`](#tezos-explorer), a notty ui for a fast exploration of tezos stores (needs `notty`)
 - [`tezos-explorer-gui`](#tezos-explorer-gui), a graphical ui for a fast exploration of tezos stores
 
 ## ppcf
@@ -101,7 +101,8 @@ $ jq -s 'sort_by(.off)' -- index
 ```
 
 ## tezos-explorer
-TODO
+Its `show` command needs `notty`, which does not support OCaml 5.4 yet.
+Without `notty` at build time, `show` only reports an error.
 
 ## tezos-explorer-gui
 This tool is a graphical UI, meant to allow the user to figure out rapidly the shape of a commit, giving them informations on its content.

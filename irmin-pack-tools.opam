@@ -22,7 +22,6 @@ depends: [
   "irmin-pack"  {= version}
   "index"       {>= "1.7.0"}
   "cmdliner"    {>= "1.1.0"}
-  "notty"       {>= "0.2.3"}
   "ppx_repr"    {>= "0.7.0"}
   "ptime"
   "hex"
@@ -30,6 +29,11 @@ depends: [
   "alcotest"    {with-test}
   "eio_main" {>= "1.3"}
 ]
+
+# The show command of irmin-tezos-explorer needs notty, which does not
+# support OCaml 5.4 yet.
+depopts: [ "notty" ]
+conflicts: [ "notty" {< "0.2.3"} ]
 
 synopsis: "Utils for Irmin-pack"
 description: """

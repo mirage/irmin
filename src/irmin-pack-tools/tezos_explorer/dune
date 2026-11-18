@@ -1,18 +1,46 @@
-(executable
- (public_name irmin-tezos-explorer)
- (package irmin-pack-tools)
- (name main)
- (modules main parse show files ring import)
+(library
+ (name tezos_explorer)
+ (modules parse files ring import)
+ (libraries irmin-pack irmin-pack.unix irmin-tezos index.unix eio)
+ (preprocess
+  (pps ppx_repr)))
+
+; notty does not support OCaml 5.4 yet: without it, the `show` command
+; only reports an error.
+
+(library
+ (name tezos_explorer_show)
+ (modules show)
+ (optional)
+ (flags
+  (:standard -open Tezos_explorer))
  (libraries
+  tezos_explorer
   irmin-pack
   irmin-pack.unix
   irmin-tezos
   notty
   notty.unix
-  index.unix
   hex
   ptime
-  cmdliner
-  eio_main)
+  eio)
  (preprocess
   (pps ppx_repr)))
+
+(executable
+ (public_name irmin-tezos-explorer)
+ (package irmin-pack-tools)
+ (name main)
+ (modules main show_cmd)
+ (flags
+  (:standard -open Tezos_explorer))
+ (libraries
+  tezos_explorer
+  cmdliner
+  eio
+  eio_main
+  (select
+   show_cmd.ml
+   from
+   (tezos_explorer_show -> show_cmd.notty.ml)
+   (-> show_cmd.none.ml))))
