@@ -53,7 +53,7 @@ let show_cmd ~sw ~fs =
   let info = Cmd.info "show" ~doc in
   Cmd.v info
     Term.(
-      const (Show.main ~sw ~fs)
+      const (Show_cmd.main ~sw ~fs)
       $ store_path
       $ info_last_path
       $ info_next_path
