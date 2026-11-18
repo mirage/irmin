@@ -17,7 +17,7 @@ depends: [
   "dune"         {>= "3.5.0"}
   "irmin"        {= version}
   "ppx_irmin"    {= version}
-  "index"        {= "dev"}
+  "index"        {>= "1.7.0"}
   "fmt"
   "logs"
   "eio"          {>= "1.0"}
@@ -30,10 +30,6 @@ depends: [
   "irmin-test"   {with-test & = version}
   "astring"      {with-test}
   "alcotest"     {with-test}
-]
-
-pin-depends: [
-  [ "index.dev"    "git+https://github.com/mirage/index#6e84bed48db8ab53a09926b45d899815c30f2b39"     ]
 ]
 
 synopsis: "Irmin backend which stores values in a pack file"

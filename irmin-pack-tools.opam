@@ -20,20 +20,15 @@ depends: [
   "dune"        {>= "3.5.0"}
   "irmin-tezos" {= version}
   "irmin-pack"  {= version}
-  "index"       {>= "1.6.2"}
+  "index"       {>= "1.7.0"}
   "cmdliner"    {>= "1.1.0"}
   "notty"       {>= "0.2.3"}
-  "index"       {>= "dev"}
   "ppx_repr"    {>= "0.7.0"}
   "ptime"
   "hex"
   "irmin-test"  {with-test & = version}
   "alcotest"    {with-test}
   "eio_main" {>= "1.3"}
-]
-
-pin-depends: [
-  [ "index.dev"    "git+https://github.com/mirage/index#6e84bed48db8ab53a09926b45d899815c30f2b39"     ]
 ]
 
 synopsis: "Utils for Irmin-pack"
