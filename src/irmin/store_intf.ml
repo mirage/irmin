@@ -929,13 +929,19 @@ module type S_generic_key = sig
 
       {b Note:} even if [f] might skip some head updates, it will never be
       called concurrently: all consecutive calls to [f] are done in sequence, so
-      we ensure that the previous one ended before calling the next one. *)
+      we ensure that the previous one ended before calling the next one.
+
+      @raise Invalid_argument
+        if [Irmin.Backend.Watch.set_watch_switch] was not called. *)
 
   val watch_key :
     t -> path -> ?init:commit -> ((commit * tree) Diff.t -> unit) -> watch
   (** [watch_key t key f] calls [f] every time the [key]'s value is added,
       removed or updated. If the current branch is deleted, no signal is sent to
-      the watcher. *)
+      the watcher.
+
+      @raise Invalid_argument
+        if [Irmin.Backend.Watch.set_watch_switch] was not called. *)
 
   val unwatch : watch -> unit
   (** [unwatch w] disable [w]. Return once the [w] is fully disabled. *)
@@ -1026,7 +1032,10 @@ module type S_generic_key = sig
 
     val watch :
       repo -> branch -> ?init:commit -> (commit Diff.t -> unit) -> watch
-    (** [watch t b f] calls [f] on every change in [b]. *)
+    (** [watch t b f] calls [f] on every change in [b].
+
+        @raise Invalid_argument
+          if [Irmin.Backend.Watch.set_watch_switch] was not called. *)
 
     val watch_all :
       repo ->
@@ -1034,7 +1043,10 @@ module type S_generic_key = sig
       (branch -> commit Diff.t -> unit) ->
       watch
     (** [watch_all t f] calls [f] on every branch-related change in [t],
-        including creation/deletion events. *)
+        including creation/deletion events.
+
+        @raise Invalid_argument
+          if [Irmin.Backend.Watch.set_watch_switch] was not called. *)
 
     val pp : branch Fmt.t
     [@@ocaml.toplevel_printer]

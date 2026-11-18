@@ -79,6 +79,16 @@ module type IO = sig
 
   val remove_file : io:io -> ?lock:lock -> path -> unit
   (** Remove a file or directory (even if non-empty). *)
+
+  (** {2 Watches} *)
+
+  val watch_path : io:io -> path -> string
+  (** [watch_path ~io dir] is the name of the directory [dir] for the listen
+      hook of {!Irmin.Backend.Watch}. Stores whose roots have the same
+      [watch_path] share their watch state. With [Irmin_fs_unix], it is the
+      native path of [dir], absolute or relative to the current directory, so
+      the hook must be registered with [Eio.Stdenv.fs]; different spellings of a
+      directory give different names. *)
 end
 
 module Append_only (IO : IO) : Irmin.Append_only.Maker

@@ -175,6 +175,12 @@ module IO = struct
           try Path.unlink file
           with Eio.Io (Eio.Fs.E (Fs.Not_found _), _) -> ())
 
+  let watch_path ~io:{ fs; _ } dir =
+    let dir = Path.(fs / dir) in
+    match Eio.Path.native dir with
+    | Some path -> path
+    | None -> Fmt.str "%a" Eio.Path.pp dir
+
   let temp_file ~temp_dir file suffix =
     let basename =
       match Eio.Path.split file with

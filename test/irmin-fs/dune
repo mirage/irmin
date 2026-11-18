@@ -16,7 +16,14 @@
 (executable
  (name test_unix)
  (modules test_unix)
- (libraries alcotest eio_main irmin irmin-test test_fs_unix))
+ (libraries
+  alcotest
+  eio_main
+  lwt_eio
+  irmin
+  irmin-test
+  irmin-watcher
+  test_fs_unix))
 
 (rule
  (alias runtest)
