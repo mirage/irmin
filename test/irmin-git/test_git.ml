@@ -224,6 +224,48 @@ let test_import_export (module S : S) =
   let+ toto = Generic.get t [ "test" ] in
   Alcotest.(check string) "import" toto "toto"
 
+let test_content_addressable (module S : G) =
+  let module G = S.Git in
+  let module Store = Irmin_git.Content_addressable (G) in
+  let module CA = Store.Make (X) in
+  let ok = function
+    | Ok x -> Lwt.return x
+    | Error e -> Alcotest.failf "%a" G.pp_error e
+  in
+  let* g = G.v (Fpath.v (Filename.concat "_build" "test-db-git-ca")) >>= ok in
+  G.reset g >>= ok >>= fun () ->
+  let value = Alcotest.option (Irmin_test.testable X.t) in
+  let check_absent msg k =
+    let* found = CA.find g k in
+    Alcotest.(check value) (msg ^ " (find)") None found;
+    let+ mem = CA.mem g k in
+    Alcotest.(check bool) (msg ^ " (mem)") false mem
+  in
+  let v = X.Y [ "foo"; "bar" ] in
+  let* k = CA.add g v in
+  let* found = CA.find g k in
+  Alcotest.(check value) "find" (Some v) found;
+  let* mem = CA.mem g k in
+  Alcotest.(check bool) "mem" true mem;
+  let missing = G.Hash.digest_string "missing" in
+  check_absent "missing key" missing >>= fun () ->
+  let* tree, _ = G.write g (G.Value.tree (G.Value.Tree.v [])) >>= ok in
+  check_absent "not a blob" tree >>= fun () ->
+  let* rejected =
+    Lwt.catch
+      (fun () -> CA.unsafe_add g missing v >|= fun () -> false)
+      (function Failure _ -> Lwt.return_true | e -> Lwt.fail e)
+  in
+  Alcotest.(check bool) "unsafe_add with a wrong key" true rejected;
+  (* The store does not own [g], so [close] leaves it usable. *)
+  CA.close g >>= fun () ->
+  let* found = CA.find g k in
+  Alcotest.(check value) "find after close" (Some v) found;
+  (* The store only deals with objects, never with references (on disk, a
+     repository would write [HEAD] if missing). *)
+  let+ head = G.Ref.mem g Git.Reference.head in
+  Alcotest.(check bool) "HEAD untouched" false head
+
 let misc (module S : G) =
   let s = (module S : S) in
   let g = (module S : G) in
@@ -235,6 +277,9 @@ let misc (module S : G) =
     ("git -> mem", `Quick, fun () -> test_import_export s);
     ("git blobs", `Quick, fun () -> test_blobs s);
     ("git blobs of generic", `Quick, fun () -> test_blobs s);
+    ( "git content-addressable store",
+      `Quick,
+      fun () -> test_content_addressable g );
   ]
 
 let mem = (module Mem (Irmin.Contents.String) : G)
