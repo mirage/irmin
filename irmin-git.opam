@@ -34,12 +34,12 @@ depends: [
   "irmin-test" {with-test & = version}
   "mtime"      {with-test & >= "2.0.0"}
   "alcotest"   {with-test}
-  "irmin-watcher" {= "dev"}
+  "irmin-watcher" {>= "0.6.0"}
   "lwt" {>= "5.9.1"}
 ]
 
 pin-depends: [
-  [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#675125d9e95cd09ef0c18ab1d9d6d69a26856b9f" ]
+  [ "irmin-watcher.0.6.0" "git+https://github.com/mirage/irmin-watcher#c822643c77de97f25dc470a5a6f039b9801da715" ]
 ]
 
 synopsis: "Git backend for Irmin"

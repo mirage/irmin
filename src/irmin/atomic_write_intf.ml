@@ -57,12 +57,18 @@ module type S = sig
   (** [watch t ?init f] adds [f] to the list of [t]'s watch handlers and returns
       the watch handler to be used with {!unwatch}. [init] is the optional
       initial values. It is more efficient to use {!watch_key} to watch only a
-      single given key.*)
+      single given key.
+
+      @raise Invalid_argument
+        if [Irmin.Backend.Watch.set_watch_switch] was not called. *)
 
   val watch_key : t -> key -> ?init:value -> (value diff -> unit) -> watch
   (** [watch_key t k ?init f] adds [f] to the list of [t]'s watch handlers for
       the key [k] and returns the watch handler to be used with {!unwatch}.
-      [init] is the optional initial value of the key. *)
+      [init] is the optional initial value of the key.
+
+      @raise Invalid_argument
+        if [Irmin.Backend.Watch.set_watch_switch] was not called. *)
 
   val unwatch : t -> watch -> unit
   (** [unwatch t w] removes [w] from [t]'s watch handlers. *)
