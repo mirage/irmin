@@ -33,8 +33,8 @@ depends: [
   "hex" {with-test & >= "1.4.0"}
   "vector" {with-test & >= "1.0.0"}
   "alcotest" {>= "1.8.0" & with-test}
-  "qcheck-alcotest" {>= "0.21.1" & with-test}
-  "qcheck-core" {>= "0.21.1" & with-test}
+  "qcheck-alcotest" {>= "0.90" & with-test}
+  "qcheck-core" {>= "0.90" & with-test}
   "qcheck-stm" {>= "0.10" & with-test}
 ]
 
