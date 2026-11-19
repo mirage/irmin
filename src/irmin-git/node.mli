@@ -26,7 +26,7 @@ module Make (G : Git.S) (P : Irmin.Path.S) :
 module Store (G : Git.S) (P : Irmin.Path.S) : sig
   include
     Irmin.Content_addressable.S
-      with type _ t = bool ref * G.t
+      with type _ t = G.t
        and type key = G.Hash.t
        and type value = G.Value.Tree.t
 

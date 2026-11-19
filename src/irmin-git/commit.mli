@@ -25,7 +25,7 @@ module Make (G : Git.S) :
 module Store (G : Git.S) : sig
   include
     Irmin.Content_addressable.S
-      with type _ t = bool ref * G.t
+      with type _ t = G.t
        and type key = G.Hash.t
        and type value = G.Value.Commit.t
 

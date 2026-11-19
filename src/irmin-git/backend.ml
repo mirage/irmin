@@ -37,33 +37,37 @@ struct
   module Node_key = Key
 
   module Contents = struct
-    module S = Contents.Make (G) (Schema.Contents)
-    include Irmin.Contents.Store (S) (S.Hash) (S.Val)
+    module Raw = Contents.Make (G) (Schema.Contents)
+    module S = Irmin.Content_addressable.Check_closed_store (Raw)
+    include Irmin.Contents.Store (S) (Raw.Hash) (Raw.Val)
   end
 
   module Node = struct
-    module S = Node.Store (G) (Schema.Path)
+    module Raw = Node.Store (G) (Schema.Path)
+    module S = Irmin.Content_addressable.Check_closed_store (Raw)
 
     include
-      Irmin.Node.Store (Contents) (S) (S.Key) (S.Val) (Metadata) (Schema.Path)
+      Irmin.Node.Store (Contents) (S) (Raw.Key) (Raw.Val) (Metadata)
+        (Schema.Path)
   end
 
   module Node_portable = Irmin.Node.Portable.Of_node (Node.Val)
 
   module Commit = struct
-    module S = Commit.Store (G)
-    include Irmin.Commit.Store (Schema.Info) (Node) (S) (S.Hash) (S.Val)
+    module Raw = Commit.Store (G)
+    module S = Irmin.Content_addressable.Check_closed_store (Raw)
+    include Irmin.Commit.Store (Schema.Info) (Node) (S) (Raw.Hash) (Raw.Val)
   end
 
-  module Commit_portable = Irmin.Commit.Portable.Of_commit (Commit.S.Val)
+  module Commit_portable = Irmin.Commit.Portable.Of_commit (Commit.Raw.Val)
 
   module Branch = struct
     module Key = Schema.Branch
     module Val = Commit_key
     module S = Atomic_write.Make (Schema.Branch) (G)
-    include Atomic_write.Check_closed (S)
+    include Irmin.Atomic_write.Check_closed_store (S)
 
-    let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t >|= v
+    let v ?lock ~head ~bare t = S.v ?lock ~head ~bare t >|= make_closeable
   end
 
   module Slice = Irmin.Backend.Slice.Make (Contents) (Node) (Commit)
@@ -76,9 +80,16 @@ struct
     type t = { config : Irmin.config; closed : bool ref; g : G.t; b : Branch.t }
 
     let branch_t t = t.b
-    let contents_t t : 'a Contents.t = (t.closed, t.g)
-    let node_t t : 'a Node.t = (contents_t t, (t.closed, t.g))
-    let commit_t t : 'a Commit.t = (node_t t, (t.closed, t.g))
+
+    let contents_t t : 'a Contents.t =
+      Contents.S.make_closeable_with t.closed t.g
+
+    let node_t t : 'a Node.t =
+      (contents_t t, Node.S.make_closeable_with t.closed t.g)
+
+    let commit_t t : 'a Commit.t =
+      (node_t t, Commit.S.make_closeable_with t.closed t.g)
+
     let batch t f = f (contents_t t) (node_t t) (commit_t t)
 
     type config = {
@@ -121,6 +132,9 @@ struct
   end
 
   let git_of_repo r = r.Repo.g
+  let contents_t = Repo.contents_t
+  let node_t = Repo.node_t
+  let commit_t = Repo.commit_t
 
   let repo_of_git ?head ?(bare = true) ?lock g =
     let+ b = Branch.v ?lock ~head ~bare g in

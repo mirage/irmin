@@ -122,5 +122,5 @@ module Store (G : Git.S) = struct
     let to_git c = G.Value.commit c
   end
 
-  include Content_addressable.Check_closed (Content_addressable.Make (G) (V))
+  include Content_addressable.Make (G) (V)
 end

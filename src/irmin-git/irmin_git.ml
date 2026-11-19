@@ -123,14 +123,14 @@ module Content_addressable (G : Git.S) = struct
     end
 
     module Schema = Schema.Make (G) (V) (Reference)
-    module M = Maker.Make (Schema)
-    module X = M.Backend.Contents
+    module B = Backend.Make (G) (No_sync) (Schema)
+    module X = B.Contents
 
     type 'a t = G.t
 
-    let state t =
-      let+ r = M.repo_of_git t in
-      M.Backend.Repo.contents_t r
+    let state t : 'a X.t Lwt.t =
+      let+ r = B.repo_of_git t in
+      B.contents_t r
 
     type key = X.key
     type value = X.value
@@ -176,7 +176,7 @@ module Atomic_write (G : Git.S) = struct
     end
 
     module AW = Atomic_write.Make (Branch.Make (K)) (G)
-    include Atomic_write.Check_closed (AW)
+    include Irmin.Atomic_write.Check_closed_store (AW)
   end
 end
 

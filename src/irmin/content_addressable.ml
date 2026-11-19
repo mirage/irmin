@@ -43,42 +43,37 @@ module Make (AO : Append_only.Maker) (K : Hash.S) (V : Type.S) = struct
     add t k v >|= fun () -> k
 end
 
-module Check_closed (CA : Maker) (K : Hash.S) (V : Type.S) = struct
-  module S = CA (K) (V)
+module Check_closed_store (CA : S) = struct
+  type 'a t = { closed : bool ref; t : 'a CA.t }
+  type value = CA.value
+  type key = CA.key
 
-  type 'a t = { closed : bool ref; t : 'a S.t }
-  type key = S.key
-  type value = S.value
+  let make_closeable t = { closed = ref false; t }
+  let make_closeable_with closed t = { closed; t }
 
-  let check_not_closed t = if !(t.closed) then raise Store_properties.Closed
+  let get_if_open_exn t =
+    if !(t.closed) then raise Store_properties.Closed else t.t
 
-  let mem t k =
-    check_not_closed t;
-    S.mem t.t k
-
-  let find t k =
-    check_not_closed t;
-    S.find t.t k
-
-  let add t v =
-    check_not_closed t;
-    S.add t.t v
-
-  let unsafe_add t k v =
-    check_not_closed t;
-    S.unsafe_add t.t k v
+  let mem t k = (get_if_open_exn t |> CA.mem) k
+  let find t k = (get_if_open_exn t |> CA.find) k
+  let add t v = (get_if_open_exn t |> CA.add) v
+  let unsafe_add t k v = (get_if_open_exn t |> CA.unsafe_add) k v
 
   let batch t f =
-    check_not_closed t;
-    S.batch t.t (fun w -> f { t = w; closed = t.closed })
-
-  let v conf =
-    let+ t = S.v conf in
-    { closed = ref false; t }
+    (get_if_open_exn t |> CA.batch) (fun w -> f { t = w; closed = t.closed })
 
   let close t =
     if !(t.closed) then Lwt.return_unit
     else (
       t.closed := true;
-      S.close t.t)
+      CA.close t.t)
+end
+
+module Check_closed (CA : Maker) (K : Hash.S) (V : Type.S) = struct
+  module S = CA (K) (V)
+  include Check_closed_store (S)
+
+  let v conf =
+    let+ t = S.v conf in
+    make_closeable t
 end
