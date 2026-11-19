@@ -2895,14 +2895,12 @@ module Make (P : Backend.S) = struct
       if not (equal_kinded_hash after (hash tree_after)) then
         Irmin_proof.bad_proof_exn "verify_proof: invalid after hash";
       (tree_after, result)
-    with
-    | Pruned_hash h ->
-        (* finaly check that [f] only access valid parts of the proof. *)
-        Fmt.kstr Irmin_proof.bad_proof_exn
-          "verify_proof: %s is trying to read through a blinded node or object \
-           (%a)"
-          h.context pp_hash h.hash
-    | e -> raise e
+    with Pruned_hash h ->
+      (* finaly check that [f] only access valid parts of the proof. *)
+      Fmt.kstr Irmin_proof.bad_proof_exn
+        "verify_proof: %s is trying to read through a blinded node or object \
+         (%a)"
+        h.context pp_hash h.hash
 
   type verifier_error = [ `Proof_mismatch of string ] [@@deriving irmin]
 
@@ -2910,9 +2908,7 @@ module Make (P : Backend.S) = struct
     try
       let r = verify_proof_exn p f in
       Ok r
-    with
-    | Irmin_proof.Bad_proof e -> Error (`Proof_mismatch e.context)
-    | e -> raise e
+    with Irmin_proof.Bad_proof e -> Error (`Proof_mismatch e.context)
 
   let hash_of_proof_state state =
     let env = Env.empty () in

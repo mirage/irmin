@@ -33,16 +33,6 @@ val state : 'a t -> 'a
 val set_state : 'a t -> 'a -> unit
 (** [set_state m v] updates the value in the {!t} object. *)
 
-(** {!update_mode} describes how the data will be handled by the {!update}
-    function.
-
-    - Mutate: the value and the storage are not modified but the content of the
-      value can be mutate.
-    - Replace f: apply f to the value and updates its content.
-
-    It gives the possibility to handle the same metric in different ways. *)
-type 'a update_mode = Mutate of ('a -> unit) | Replace of ('a -> 'a)
-
 val v : ?origin:origin -> name:string -> initial_state:'a -> 'a Repr.ty -> 'a t
 (** [v ~origin ~name ~initial_state  repr ] create a new {!t}. The [origin] can
     be set to give an hint about where the data are gathered. [name] is a name
@@ -50,6 +40,6 @@ val v : ?origin:origin -> name:string -> initial_state:'a -> 'a Repr.ty -> 'a t
     metric object. [repr] describes the type representation to allow
     serialization. *)
 
-val update : 'a t -> 'a update_mode -> unit
-(** [update metrics mode] updates the metric by taking in consideration [mode]
-    to define how it acts on [t] according to their specication. *)
+val update : 'a t -> ('a -> 'a) -> unit
+(** [update metrics f] atomically applies [f] to the current state using
+    compare-and-set. Retries on concurrent modification. *)

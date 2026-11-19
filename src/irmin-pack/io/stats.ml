@@ -78,8 +78,7 @@ module Pack_store = struct
           }
       | Not_found -> { v with total = succ v.total }
     in
-    let mut = Metrics.Replace f in
-    Metrics.update finds mut
+    Metrics.update finds f
 
   let cache_misses
       {
@@ -135,10 +134,7 @@ module Index = struct
     let initial_state = create_index () in
     Metrics.v ~origin:Index_stats ~name:"index_metric" ~initial_state t
 
-  let report index =
-    let modifier = Metrics.Replace (fun _ -> Stats_intf.Index.S.get ()) in
-    Metrics.(update index modifier)
-
+  let report index = Metrics.update index (fun _ -> Stats_intf.Index.S.get ())
   let export m = Metrics.state m
 end
 
@@ -201,7 +197,7 @@ module File_manager = struct
       | Auto_index -> { t with auto_index = succ t.auto_index }
       | Flush -> { t with flush = succ t.flush }
     in
-    Metrics.update t (Metrics.Replace f)
+    Metrics.update t f
 end
 
 module Latest_gc = struct
@@ -219,13 +215,11 @@ module Latest_gc = struct
     let initial_state = None in
     Metrics.v ~origin:Latest_gc ~name:"latest_gc_metric" ~initial_state t
 
-  let clear : stat -> unit =
-   fun m -> Metrics.update m (Metrics.Replace (fun _ -> None))
-
+  let clear : stat -> unit = fun m -> Metrics.update m (fun _ -> None)
   let export : stat -> t = Metrics.state
 
   let update : stats -> stat -> unit =
-   fun stat m -> Metrics.update m (Metrics.Replace (fun _ -> Some stat))
+   fun stat m -> Metrics.update m (fun _ -> Some stat)
 
   let new_suffix_end_offset_before_finalise worker =
     match List.assoc_opt "suffix" worker.files with

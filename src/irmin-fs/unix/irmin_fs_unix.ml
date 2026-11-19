@@ -123,17 +123,16 @@ module IO = struct
             let flow = Path.open_out ~sw file ~create:(`Exclusive 0o600) in
             Flow.copy_string (string_of_int pid) flow
           in
-          try create () with
-          | Eio.Io (Fs.E (Fs.Already_exists _), _) ->
-              let backoff =
-                1.
-                +. Random.float
-                     (let i = float i in
-                      i *. i)
-              in
-              Eio.Time.sleep io.clock (sleep *. backoff);
-              aux (i + 1)
-          | e -> raise e
+          try create ()
+          with Eio.Io (Fs.E (Fs.Already_exists _), _) ->
+            let backoff =
+              1.
+              +. Random.float
+                   (let i = float i in
+                    i *. i)
+            in
+            Eio.Time.sleep io.clock (sleep *. backoff);
+            aux (i + 1)
       in
       aux 1
 

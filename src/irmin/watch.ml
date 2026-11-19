@@ -25,25 +25,25 @@ let none _ _ =
   Printf.eprintf "Listen hook not set!\n%!";
   assert false
 
-let listen_dir_hook = ref none
-let watch_switch = ref None
+let listen_dir_hook = Atomic.make none
+let watch_switch = Atomic.make None
 
 type hook = int -> string -> (string -> unit) -> unit -> unit
 
-let set_listen_dir_hook (h : hook) = listen_dir_hook := h
-let set_watch_switch sw = watch_switch := Some sw
+let set_listen_dir_hook (h : hook) = Atomic.set listen_dir_hook h
+let set_watch_switch sw = Atomic.set watch_switch (Some sw)
 
 let id () =
-  let c = ref 0 in
-  fun () ->
-    incr c;
-    !c
+  let c = Atomic.make 0 in
+  fun () -> Atomic.fetch_and_add c 1 + 1
 
 let global = id ()
-let workers_r = ref 0
-let workers () = !workers_r
+let workers_r = Atomic.make 0
+let workers () = Atomic.get workers_r
 
-(* Not sure this is right *)
+(* Continuously drain the stream, applying [f] to each non-None element.
+   None is used as a termination signal but is currently ignored
+   (the loop continues), which may cause fibers to leak on shutdown. *)
 let rec stream_iter f s =
   (match Eio.Stream.take s with Some v -> f v | None -> ());
   stream_iter f s
@@ -60,9 +60,14 @@ let scheduler () =
           let s = Eio.Stream.create max_int in
           (s, Eio.Stream.add s)
         in
-        incr workers_r;
+        ignore (Atomic.fetch_and_add workers_r 1);
         let sw =
-          try Option.get !watch_switch with _ -> failwith "Big Yikes"
+          match Atomic.get watch_switch with
+          | Some sw -> sw
+          | None ->
+              failwith
+                "Watch: no Eio switch set. Call Irmin.Watch.set_watch_switch \
+                 before using watches."
         in
         (Eio.Fiber.fork ~sw @@ fun () -> stream_iter (fun f -> f ()) stream);
         (* Lwt.async (fun () ->
@@ -75,7 +80,7 @@ let scheduler () =
   in
   let clean () =
     !c ();
-    decr workers_r;
+    ignore (Atomic.fetch_and_add workers_r (-1));
     c := niet;
     p := None
   in
@@ -307,7 +312,7 @@ struct
       if t.listeners = 0 then (
         [%log.debug "%s: start listening to %s" (to_string t) dir];
         let f =
-          !listen_dir_hook t.id dir (fun file ->
+          (Atomic.get listen_dir_hook) t.id dir (fun file ->
               match key file with
               | None -> ()
               | Some key ->
