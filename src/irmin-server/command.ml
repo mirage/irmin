@@ -16,6 +16,7 @@
 
 open Lwt.Syntax
 open Lwt.Infix
+open Import
 include Command_intf
 
 module Make (IO : Conn.IO) (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) =
@@ -93,6 +94,26 @@ struct
 
     open Store.Backend
 
+    let equal_hash = Irmin.Type.(unstage (equal Store.Hash.t))
+    let pp_hash = Irmin.Type.pp Store.Hash.t
+
+    (* [unsafe_add] trusts the hash it is given, which comes from the client
+       here. A wrong one could corrupt the object of this hash. [expected]
+       computes the hash of the value, and [add] adds it, both in Eio. *)
+    let unsafe_add conn ~name res_t hash ~expected ~add =
+      let* res =
+        Lwt_eio.run_eio @@ fun () ->
+        let expected = expected () in
+        if equal_hash hash expected then Ok (add ()) else Error expected
+      in
+      match res with
+      | Ok key -> Return.v conn res_t key
+      | Error expected ->
+          [%log.warn
+            "%s: refused hash %a, the hash of the value is %a" name pp_hash hash
+              pp_hash expected];
+          Return.err conn (name ^ ": the hash is not the hash of the value")
+
     module Contents = struct
       type key = Contents.key
 
@@ -156,12 +177,11 @@ struct
         type res = key [@@deriving irmin]
 
         let run conn ctx _ (hash, value) =
-          let* k =
-            Lwt_eio.run_eio @@ fun () ->
-            Repo.batch ctx.repo (fun contents _ _ ->
-                Contents.unsafe_add contents hash value)
-          in
-          Return.v conn res_t k
+          unsafe_add conn ~name res_t hash
+            ~expected:(fun () -> Contents.Hash.hash value)
+            ~add:(fun () ->
+              Repo.batch ctx.repo (fun contents _ _ ->
+                  Contents.unsafe_add contents hash value))
       end
 
       module Index = struct
@@ -260,13 +280,43 @@ struct
         type req = Hash.t * value [@@deriving irmin]
         type res = key [@@deriving irmin]
 
-        let run conn ctx _ (hash, value) =
-          let* k =
-            Lwt_eio.run_eio @@ fun () ->
-            Repo.batch ctx.repo (fun _ node _ ->
-                Node.unsafe_add node hash value)
+        (* The inodes at a given depth hold disjoint and non-empty sets of
+           entries: there are fewer of them than entries in the node. *)
+        let count_reads value =
+          let reads = Hashtbl.create 8 in
+          fun ~expected_depth ->
+            let n =
+              1
+              + Option.value ~default:0 (Hashtbl.find_opt reads expected_depth)
+            in
+            if n > Node.Val.length value then
+              Error.raise_error (name ^ ": too many child inodes");
+            Hashtbl.replace reads expected_depth n
+
+        let not_found () =
+          Error.raise_error (name ^ ": cannot find a child inode in the store")
+
+        (* irmin-pack can decode a node with many entries as a root inode
+           which points to child inodes stored apart. [Node.Hash.hash] needs
+           all the entries: the handler of the value reads these children
+           from the store. *)
+        let hash_of_value repo value =
+          let node = Repo.node_t repo in
+          let count = count_reads value in
+          let find ~expected_depth key =
+            count ~expected_depth;
+            match Node.find node key with
+            | Some _ as child -> child
+            | None -> not_found ()
           in
-          Return.v conn res_t k
+          Node.Hash.hash (Node.Val.with_handler (fun _ -> find) value)
+
+        let run conn ctx _ (hash, value) =
+          unsafe_add conn ~name res_t hash
+            ~expected:(fun () -> hash_of_value ctx.repo value)
+            ~add:(fun () ->
+              Repo.batch ctx.repo (fun _ node _ ->
+                  Node.unsafe_add node hash value))
       end
 
       module Index = struct
@@ -361,12 +411,11 @@ struct
         type res = key [@@deriving irmin]
 
         let run conn ctx _ (hash, value) =
-          let* k =
-            Lwt_eio.run_eio @@ fun () ->
-            Repo.batch ctx.repo (fun _ _ commit ->
-                Commit.unsafe_add commit hash value)
-          in
-          Return.v conn res_t k
+          unsafe_add conn ~name res_t hash
+            ~expected:(fun () -> Commit.Hash.hash value)
+            ~add:(fun () ->
+              Repo.batch ctx.repo (fun _ _ commit ->
+                  Commit.unsafe_add commit hash value))
       end
 
       module Index = struct

@@ -553,7 +553,7 @@ struct
 
       - When [Total], it originates from [Val.v] or [Val.empty].
       - When [Partial], it originates from [Val.of_bin], which is only used by
-        [Inode.find].
+        [Inode.find], or from [Val.with_handler] applied to a [Truncated] inode.
       - When [Truncated], it either originates from an [Irmin.Type]
         deserialisation or from a proof.
 
@@ -1239,6 +1239,31 @@ struct
             Tree { depth = t.Bin.depth; length = t.length; entries }
       in
       { v_ref = Val_ref.of_hash t.Bin.hash; root = t.Bin.root; v }
+
+    (** [partial_of_truncated t] is [t] in the [Partial] layout, where its
+        broken pointers become lazy ones, to be read with the [find] of that
+        layout. It is [None] if a pointer is known by its hash only: there is no
+        key to read it. The result is meant to be read, not saved: [save] does
+        not check that the lazy pointers lead to stored inodes. *)
+    let partial_of_truncated (t : truncated_ptr t) : partial_ptr t option =
+      let exception Unkeyed in
+      let rec aux (t : truncated_ptr t) : partial_ptr t =
+        let ptr = function
+          | Broken vref -> (
+              match Val_ref.inspect vref with
+              | Key key -> { target = Atomic.make (Lazy key) }
+              | Hash _ -> raise Unkeyed)
+          | Intact t -> { target = Atomic.make (Dirty (aux t)) }
+        in
+        let v =
+          match t.v with
+          | Values vs -> Values vs
+          | Tree tr ->
+              Tree { tr with entries = Array.map (Option.map ptr) tr.entries }
+        in
+        { t with v }
+      in
+      match aux t with t -> Some t | exception Unkeyed -> None
 
     let recompute_hash layout t =
       if is_stable t then
@@ -2165,26 +2190,43 @@ struct
       Irmin.Merge.like t merge of_node to_node
 
     let with_handler f_env t =
+      (* [f_env] works on [Val.t] while [find] in [Partial find] works on
+         [Val_impl.t], hence the wrapping (before applying [f_env]) and the
+         unwrapping (after [f_env]). *)
+      let partial find_v v =
+        let find = f_env find_v in
+        let find_ptr ~expected_depth h =
+          match find ~expected_depth h with
+          | None -> None
+          | Some (Partial (_, v)) -> Some v
+          | Some (Truncated v) -> (
+              match I.partial_of_truncated v with
+              | Some _ as v -> v
+              | None -> raise_dangling_hash "with_handler" (Key.to_hash h))
+          | Some (Total _) ->
+              Fmt.failwith
+                "Irmin_pack.Inode.with_handler: the handler gave an inode \
+                 built in memory for %a"
+                pp_key h
+        in
+        Partial (I.Partial find_ptr, v)
+      in
       match t with
       | Total _ -> t
-      | Truncated _ -> t
+      | Truncated v -> (
+          (* The pointers of [v] to its children are broken: only [f_env] can
+             read them. *)
+          let find_v ~expected_depth:_ key =
+            raise_dangling_hash "with_handler" (Key.to_hash key)
+          in
+          match I.partial_of_truncated v with
+          | Some v -> partial find_v v
+          | None -> t)
       | Partial ((I.Partial find as la), v) ->
-          (* [f_env] works on [Val.t] while [find] in [Partial find] works on
-             [Val_impl.t], hence the following wrapping (before applying
-             [f_env]) and unwrapping (after [f_env]). *)
           let find_v ~expected_depth h =
-            match find ~expected_depth h with
-            | None -> None
-            | Some v -> Some (Partial (la, v))
+            Option.map (fun v -> Partial (la, v)) (find ~expected_depth h)
           in
-          let find = f_env find_v in
-          let find_ptr ~expected_depth h =
-            match find ~expected_depth h with
-            | Some (Partial (_, v)) -> Some v
-            | _ -> None
-          in
-          let la = I.Partial find_ptr in
-          Partial (la, v)
+          partial find_v v
 
     let head t =
       let f la (v : _ I.t) =

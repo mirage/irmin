@@ -9,6 +9,17 @@
   - `notty` is now optional, as it does not support OCaml 5.4 yet. Without
     it, the `show` command of `irmin-tezos-explorer` only reports an error
     (@balat)
+- **irmin-pack**
+  - The `with_handler` of the inodes also applies to the ones decoded with
+    `Irmin.Type`, which can then read their children from a store
+    (#2434, @balat)
+
+### Fixed
+
+- **irmin-server**
+  - Refuse the `unsafe_add` commands whose hash is not the hash of the value.
+    A client could store a value under the hash of another object, which then
+    became unreadable (#2434, @balat)
 
 ## 3.11.0 (2025-06-19)
 
