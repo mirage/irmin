@@ -94,3 +94,8 @@ Clone a local repo
   irmin: [WARNING] Updating the control file to [Used_non_minimal_indexing_strategy]. It won't be possible to GC this irmin-pack store anymore.
   $ irmin get --root ./cloned a/b/c
   123
+
+The server refuses an option which is not valid
+  $ irmin server --max-message-size 10
+  ERROR: max_message_size: 10 bytes is too short, the handshake needs 130 bytes
+  [1]

@@ -45,16 +45,18 @@ let normalize_uri ?hostname uri =
   in
   (uri, Option.value ~default:addr hostname)
 
-let config ?tls ?hostname uri =
+let config ?tls ?hostname ?max_message_size uri =
   let uri, addr = normalize_uri ?hostname uri in
-  Irmin_client.config ?tls ~hostname:(Option.value ~default:addr hostname) uri
+  Irmin_client.config ?tls ?max_message_size
+    ~hostname:(Option.value ~default:addr hostname)
+    uri
 
 module Make_codec (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   include Irmin_client.Make_codec (IO) (Codec) (Store)
 
-  let connect ?tls ?hostname uri =
+  let connect ?tls ?hostname ?max_message_size uri =
     let uri, hostname = normalize_uri ?hostname uri in
-    connect ?tls ~hostname uri
+    connect ?tls ?max_message_size ~hostname uri
 end
 
 module Make (Store : Irmin.Generic_key.S) = Make_codec (Conn.Codec.Bin) (Store)

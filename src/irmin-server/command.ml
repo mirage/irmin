@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
+open Import
 open Lwt.Syntax
 open Lwt.Infix
 include Command_intf
@@ -462,6 +463,21 @@ struct
           Return.v conn res_t ()
       end
 
+      let diff_t = Irmin.Diff.t Store.commit_key_t
+
+      (* A notification which is too long is lost, but nothing of it is
+         written: the watcher can read the next ones. *)
+      let notify conn ty x =
+        Lwt.catch
+          (fun () -> Conn.Response.write conn { status = 0 } ty x)
+          (function
+            | Conn_intf.Message_too_large len ->
+                [%log.err "watch: notification of %Lu bytes not sent" len];
+                Lwt.return_unit
+            | exn ->
+                [%log.debug "watch: notification not sent: %a" Fmt.exn exn];
+                Lwt.return_unit)
+
       module Watch = struct
         type req = (key * value) list option [@@deriving irmin]
         type res = unit [@@deriving irmin]
@@ -479,17 +495,7 @@ struct
           in
           let* watch =
             Branch.watch b ?init (fun key diff ->
-                let diff_t = Irmin.Diff.t Store.commit_key_t in
-                Lwt.catch
-                  (fun () ->
-                    let* () = Conn.Response.write_header conn { status = 0 } in
-                    let* () =
-                      Conn.write conn
-                        (Irmin.Type.pair Store.Branch.t diff_t)
-                        (key, diff)
-                    in
-                    IO.flush conn.oc)
-                  (fun _ -> Lwt.return_unit))
+                notify conn (Irmin.Type.pair Store.Branch.t diff_t) (key, diff))
           in
           ctx.branch_watch <- Some watch;
           Return.v conn res_t ()
@@ -511,14 +517,7 @@ struct
             | None -> Lwt.return_unit
           in
           let* watch =
-            Branch.watch_key b key ?init (fun diff ->
-                let diff_t = Irmin.Diff.t Store.commit_key_t in
-                Lwt.catch
-                  (fun () ->
-                    let* () = Conn.Response.write_header conn { status = 0 } in
-                    let* () = Conn.write conn diff_t diff in
-                    IO.flush conn.oc)
-                  (fun _ -> Lwt.return_unit))
+            Branch.watch_key b key ?init (fun diff -> notify conn diff_t diff)
           in
           ctx.branch_watch <- Some watch;
           Return.v conn res_t ()
