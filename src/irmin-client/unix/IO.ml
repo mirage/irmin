@@ -71,33 +71,87 @@ end
 
 let websocket_to_flow client =
   let open Lwt.Infix in
-  let rec fill_ic channel client =
-    (* There's no way to test if the connected client is still alive
-       so we catch the End_of_file exception and presume it means the
-       connection is now over. *)
-    Lwt.catch
-      (fun () ->
-        Websocket_lwt_unix.read client >>= fun frame ->
-        [%log.debug "<<< Client received frame"];
-        Lwt_io.write channel frame.content >>= fun () -> fill_ic channel client)
-      (function End_of_file -> Lwt_io.close channel | exn -> Lwt.fail exn)
-  in
-  let rec send_oc handshake channel client =
-    (if handshake then Websocket_protocol.read_handshake channel
-     else Websocket_protocol.read_request channel)
-    >>= fun content ->
-    [%log.debug ">>> Client sent frame"];
-    Lwt.catch
-      (fun () ->
-        Websocket_lwt_unix.write client
-          (Websocket.Frame.create ~opcode:Binary ~content ())
-        >>= fun () -> send_oc false channel client)
-      (function End_of_file -> Lwt_io.close channel | exn -> Lwt.fail exn)
-  in
   let input_ic, input_oc = Lwt_io.pipe () in
   let output_ic, output_oc = Lwt_io.pipe () in
-  Lwt.async (fun () -> fill_ic input_oc client);
-  Lwt.async (fun () -> send_oc true output_ic client);
+  (* An exception must not leave the two loops below: it would stop the
+     program, as nobody waits for them. *)
+  let stopped loop = function
+    | End_of_file | Lwt.Canceled -> ()
+    | Websocket.Protocol_error _ as exn ->
+        [%log.warn "Websocket: %s stopped on %a" loop Fmt.exn exn]
+    | exn -> [%log.info "Websocket: %s stopped on %a" loop Fmt.exn exn]
+  in
+  (* [ending what f] runs [f ()], which ends the connection, and only logs
+     its failure *)
+  let ending what f =
+    Lwt.catch f (fun exn ->
+        [%log.info "Websocket: %s: %a" what Fmt.exn exn];
+        Lwt.return_unit)
+  in
+  (* Set when the connection is over: no read may wait any more *)
+  let closing = ref false in
+  let read_frame () =
+    let frame = Websocket_lwt_unix.read client in
+    if !closing then Lwt.cancel frame;
+    frame
+  in
+  (* The frames of the server are the input of the client. [fragment] tells
+     whether a binary message is not complete yet. *)
+  let rec receive ~fragment () =
+    read_frame () >>= fun frame ->
+    match frame.opcode with
+    | Binary -> forward frame
+    | Continuation when fragment -> forward frame
+    (* A text frame inside a binary message breaks the protocol: the client
+       then fails to decode the part of the message it was given *)
+    | Text | Continuation -> receive ~fragment:false ()
+    | Close -> Lwt.fail End_of_file
+    | _ -> receive ~fragment ()
+  and forward (frame : Websocket.Frame.t) =
+    [%log.debug "<<< Client received frame"];
+    Lwt_io.write input_oc frame.content >>= receive ~fragment:(not frame.final)
+  in
+  (* Each message written by the client is a frame for the server *)
+  let rec send read =
+    read output_ic >>= fun content ->
+    [%log.debug ">>> Client sent frame"];
+    Websocket_lwt_unix.write client
+      (Websocket.Frame.create ~opcode:Binary ~content ())
+    >>= fun () -> send Websocket_protocol.read_request
+  in
+  (* The input channel of the websocket is only closed by a read which
+     fails: the frames left are read until then *)
+  let rec drain () = read_frame () >>= fun _ -> drain () in
+  let receiver =
+    Lwt.finalize
+      (fun () ->
+        Lwt.catch (receive ~fragment:false) (fun exn ->
+            stopped "receiver" exn;
+            (* The client reads what is left, then the end of its input *)
+            ending "closing the input" (fun () -> Lwt_io.close input_oc)))
+      (fun () ->
+        (* A read always ends the drain with an exception *)
+        Lwt.catch drain (fun exn ->
+            [%log.debug "Websocket: end of the input: %a" Fmt.exn exn];
+            Lwt.return_unit))
+  in
+  Lwt.async (fun () ->
+      Lwt.catch
+        (fun () -> send Websocket_protocol.read_handshake)
+        (fun exn ->
+          stopped "sender" exn;
+          Lwt.return_unit)
+      >>= fun () ->
+      (* The client is closed, or nothing can be sent any more: the
+         connection is over *)
+      ending "closing the output" (fun () -> Lwt_io.abort output_ic)
+      >>= fun () ->
+      (* A cancelled read closes the input of the websocket, and
+         [close_transport] its output: the socket is then closed *)
+      closing := true;
+      Lwt.cancel receiver;
+      ending "closing the connection" (fun () ->
+          Websocket_lwt_unix.close_transport client));
   (input_ic, output_oc)
 
 let connect ~ctx (client : Irmin_client.addr) =
