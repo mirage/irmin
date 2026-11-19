@@ -55,7 +55,91 @@ let ping client () =
   Logs.debug (fun l -> l "AFTER PING");
   Alcotest.(check (result unit error)) "ping" (Ok ()) r
 
-let misc client = [ ("ping", `Quick, ping client) ]
+(* The dashboard sends the paths of the store as JSON strings, and reads
+   them back from percent-encoded URLs, whatever they contain. *)
+let dashboard_paths client () =
+  let entry_t =
+    Irmin.Type.(
+      record "entry" (fun path kind hash -> (path, kind, hash))
+      |+ field "path" string (fun (path, _, _) -> path)
+      |+ field "kind" string (fun (_, kind, _) -> kind)
+      |+ field "hash" string (fun (_, _, hash) -> hash)
+      |> sealr)
+  in
+  let contents_t =
+    Irmin.Type.(
+      record "contents" (fun contents hash -> (contents, hash))
+      |+ field "contents" string fst
+      |+ field "hash" string snd
+      |> sealr)
+  in
+  (* [%41] must not be read as [A] *)
+  let step = {|"<img src=x onerror=alert(1)>\ #?%41|} in
+  (* Not valid UTF-8, so the paths below it are sent in base64 *)
+  let binary = step ^ "\xff" in
+  let path steps = "/" ^ String.concat "/" steps in
+  let request meth steps =
+    let encoded = path (List.map (Uri.pct_encode ~component:`Path) steps) in
+    let uri =
+      Uri.of_string
+        (Fmt.str "http://127.0.0.1:%d%s?branch=dashboard"
+           (Lazy.force dashboard_port)
+           encoded)
+    in
+    let response, body =
+      Lwt_eio.run_lwt @@ fun () ->
+      let open Lwt.Syntax in
+      let* response, body = Cohttp_lwt_unix.Client.call meth uri in
+      let+ body = Cohttp_lwt.Body.to_string body in
+      (response, body)
+    in
+    let headers = Cohttp.Response.headers response in
+    (Cohttp.Header.get headers "content-type", body)
+  in
+  let decode t body =
+    match Irmin.Type.of_json_string t body with
+    | Ok x -> x
+    | Error (`Msg e) -> Alcotest.failf "invalid JSON %S: %s" body e
+  in
+  let list steps =
+    let content_type, body = request `POST steps in
+    Alcotest.(check (option string))
+      "content type" (Some "application/json") content_type;
+    decode Irmin.Type.(list entry_t) body
+  in
+  let paths = List.map (fun (path, _, _) -> path) in
+  let repo = client () in
+  let t = Client.of_branch repo "dashboard" in
+  Fun.protect
+    ~finally:(fun () -> Client.Branch.remove repo "dashboard")
+    (fun () ->
+      Client.set_exn t ~info:Client.Info.none [ step; binary ] "v";
+      Alcotest.(check (list string)) "root" [ path [ step ] ] (paths (list []));
+      let entries = list [ step ] in
+      Alcotest.(check (list string))
+        "node"
+        [ path [ step; binary ] ]
+        (paths entries);
+      let content_type, body = request `POST [ step; binary ] in
+      Alcotest.(check (option string))
+        "contents type" (Some "application/json") content_type;
+      let contents, hash = decode contents_t body in
+      Alcotest.(check string) "contents" "v" contents;
+      (* The hash of the contents is written as in the list *)
+      Alcotest.(check (list string))
+        "hash"
+        (List.map (fun (_, _, hash) -> hash) entries)
+        [ hash ];
+      let content_type, _ = request `GET [] in
+      Alcotest.(check (option string))
+        "page content type" (Some "text/html; charset=utf-8") content_type)
+
+let misc client =
+  [
+    ("ping", `Quick, ping client);
+    ("dashboard paths", `Quick, dashboard_paths client);
+  ]
+
 let misc client = [ ("misc", misc client) ]
 
 let unix_suite ~env () =
