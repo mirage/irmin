@@ -1,3 +1,14 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-server**
+  - Do not stop the server on a websocket error, such as a frame which is not
+    valid or a connection reset by the client (#2427, @balat)
+  - Close the file descriptors of a websocket when it ends (#2427, @balat)
+  - Send nothing more to a websocket client once it has closed the connection
+    (#2427, @balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added
