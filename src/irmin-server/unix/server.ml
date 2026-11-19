@@ -189,45 +189,120 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   end
 
   let websocket_handler server client =
-    let rec fill_ic channel other_channel client =
-      if Lwt_io.is_closed other_channel then Lwt_io.close channel
-      else
-        Lwt.catch
-          (fun () ->
-            let* frame = Websocket_lwt_unix.Connected_client.recv client in
-            if frame.opcode <> Binary then fill_ic channel other_channel client
-            else (
-              [%log.debug "<<< Server received frame"];
-              Lwt_io.write channel frame.content >>= fun () ->
-              fill_ic channel other_channel client))
-          (function
-            | End_of_file ->
-                (* The websocket has been closed is the assumption here *)
-                Lwt_io.close channel >>= fun () -> Lwt_io.close other_channel
-            | exn -> Lwt.fail exn)
+    (* A channel which cannot be released must not stop the release of the
+       others *)
+    let release f channel =
+      Lwt.catch
+        (fun () -> f channel)
+        (fun exn ->
+          [%log.debug "Websocket: closing a channel: %a" Fmt.exn exn];
+          Lwt.return_unit)
     in
-    let rec send_oc handshake channel other_channel client =
-      if Lwt_io.is_closed other_channel then Lwt_io.close channel
-      else
-        (if handshake then Websocket_protocol.read_handshake channel
-         else Websocket_protocol.read_response channel)
-        >>= fun content ->
+    let pipe () = Lwt_io.pipe ~cloexec:true () in
+    let input_ic, input_oc = pipe () in
+    let* output_ic, output_oc =
+      Lwt.catch
+        (fun () -> Lwt.return (pipe ()))
+        (fun exn ->
+          let* () =
+            Lwt.join
+              [ release Lwt_io.abort input_ic; release Lwt_io.abort input_oc ]
+          in
+          Lwt.fail exn)
+    in
+    let release_all () =
+      (* [input_ic] first: a loop which stops then sees that the connection
+         is over *)
+      let input = release Lwt_io.abort input_ic in
+      Lwt.join
+        [
+          input;
+          release Lwt_io.abort input_oc;
+          release Lwt_io.abort output_ic;
+          release Lwt_io.abort output_oc;
+        ]
+    in
+    (* Resolved when the client has closed the connection or is gone *)
+    let client_stopped, stop_client = Lwt.wait () in
+    (* A failure on the socket of the client: a connection lost, or a client
+       which breaks the protocol. It is the fault of the client, not of the
+       server. *)
+    let exception Client_failure of exn in
+    let on_socket f =
+      Lwt.catch f (function
+        | (End_of_file | Lwt.Canceled) as exn -> Lwt.fail exn
+        | exn -> Lwt.fail (Client_failure exn))
+    in
+    (* An exception must not leave the two loops below: nobody waits for
+       them. *)
+    let stopped loop = function
+      | End_of_file | Lwt.Canceled -> ()
+      | exn when Lwt_io.is_closed input_ic ->
+          (* The connection is already over *)
+          [%log.debug "Websocket: %s stopped on %a" loop Fmt.exn exn]
+      | Client_failure exn ->
+          [%log.info "Websocket: %s stopped on %a" loop Fmt.exn exn]
+      | exn -> [%log.err "Websocket: %s stopped on %a" loop Fmt.exn exn]
+    in
+    (* The frames of the client are the input of [callback] *)
+    let rec receive () =
+      let* frame =
+        on_socket (fun () -> Websocket_lwt_unix.Connected_client.recv client)
+      in
+      match frame.opcode with
+      | Binary ->
+          [%log.debug "<<< Server received frame"];
+          Lwt_io.write input_oc frame.content >>= receive
+      | Close -> Lwt.fail End_of_file
+      | _ -> receive ()
+    in
+    let receiver =
+      Lwt.catch receive (fun exn ->
+          stopped "receiver" exn;
+          Lwt.wakeup stop_client ();
+          (* [callback] still runs the requests already received, then reads
+             the end of its input *)
+          release Lwt_io.close input_oc)
+    in
+    (* Each message written by [callback] is a frame for the client, until
+       the client stops. The next messages are then dropped, and the frame
+       being sent is given up. *)
+    let send_frame content =
+      if Lwt.is_sleeping client_stopped then (
         [%log.debug ">>> Server sent frame"];
-        Lwt.catch
-          (fun () ->
-            Websocket_lwt_unix.Connected_client.send client
-              (Websocket.Frame.create ~opcode:Binary ~content ())
-            >>= fun () -> send_oc false channel other_channel client)
-          (function
-            | End_of_file ->
-                Lwt_io.close channel >>= fun () -> Lwt_io.close other_channel
-            | exn -> Lwt.fail exn)
+        Lwt.pick
+          [
+            on_socket (fun () ->
+                Websocket_lwt_unix.Connected_client.send client
+                  (Websocket.Frame.create ~opcode:Binary ~content ()));
+            Lwt.protected client_stopped;
+          ])
+      else Lwt.return_unit
     in
-    let input_ic, input_oc = Lwt_io.pipe () in
-    let output_ic, output_oc = Lwt_io.pipe () in
-    Lwt.async (fun () -> fill_ic input_oc input_ic client);
-    Lwt.async (fun () -> send_oc true output_ic output_oc client);
-    callback server input_ic output_oc
+    let rec send read =
+      let* content = read output_ic in
+      let* () = send_frame content in
+      send Websocket_protocol.read_response
+    in
+    let sender =
+      Lwt.catch
+        (fun () -> send Websocket_protocol.read_handshake)
+        (fun exn ->
+          stopped "sender" exn;
+          Lwt.return_unit)
+      >>= fun () ->
+      (* Nothing can be sent any more: [callback] has to stop *)
+      release_all ()
+    in
+    Lwt.finalize
+      (fun () -> callback server input_ic output_oc)
+      (fun () ->
+        (* [callback] stops at the end of its input, when nothing can be sent
+           any more, or when the handshake fails: nothing is then left to send
+           to the client. *)
+        Lwt.cancel receiver;
+        Lwt.cancel sender;
+        release_all ())
 
   let on_exn x = [%log.err "EXCEPTION: %s" (Printexc.to_string x)]
 
