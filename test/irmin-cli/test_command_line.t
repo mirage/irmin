@@ -124,3 +124,8 @@ Show documentation
       log         List commits
   
   See `irmin help <command>` for more information on a specific command.
+
+The server refuses an option which is not valid
+  $ irmin server --max-message-size 10
+  ERROR: max_message_size: 10 bytes is too short, the handshake needs 130 bytes
+  [1]

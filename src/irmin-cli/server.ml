@@ -28,7 +28,7 @@ let setup_log =
     const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
 let main ~env ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
-    ~config_path (module Codec : Conn.Codec.S) fingerprint =
+    ~max_message_size ~config_path (module Codec : Conn.Codec.S) fingerprint =
   Lwt_eio.run_lwt @@ fun () ->
   let store, config =
     Resolver.load_config ~env ?root ?config_path ?store ?hash ?contents ()
@@ -55,20 +55,32 @@ let main ~env ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
       | Some port -> Some (`TCP (`Port port))
       | None -> None
     in
-    let* server = Server.v ?tls_config ?dashboard ~uri config in
+    Option.iter
+      (fun size ->
+        try
+          Server.Command.Conn.Handshake.V1.check_max_message_size
+            (module Store : Irmin.Generic_key.S)
+            size
+        with Invalid_argument msg ->
+          Fmt.epr "ERROR: %s\n%!" msg;
+          exit 1)
+      max_message_size;
+    let* server =
+      Server.v ?tls_config ?dashboard ?max_message_size ~uri config
+    in
     let root = match root with Some root -> root | None -> "" in
     Logs.app (fun l -> l "Listening on %a, store: %s" Uri.pp_hum uri root);
     Server.serve server
 
 let main ~env readonly root uri tls (store, hash, contents) codec config_path
-    dashboard fingerprint () =
+    dashboard max_message_size fingerprint () =
   let codec =
     match codec with
     | `Bin -> (module Conn.Codec.Bin : Conn.Codec.S)
     | `Json -> (module Conn.Codec.Json)
   in
   main ~env ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
-    ~dashboard codec fingerprint
+    ~dashboard ~max_message_size codec fingerprint
 
 open Cmdliner
 
@@ -105,6 +117,17 @@ let dashboard =
   in
   Arg.(value @@ opt (some int) None doc)
 
+let max_message_size =
+  let doc =
+    Arg.info ~docs:"" ~docv:"BYTES"
+      ~doc:
+        "Maximum size of a message. The connection of a client sending a \
+         longer one is closed. The default is 64 MiB. The handshake needs \
+         about 130 bytes, depending on the store."
+      [ "max-message-size" ]
+  in
+  Arg.(value @@ opt (some int) None doc)
+
 let main_term ~env =
   Term.(
     const (main ~env)
@@ -116,5 +139,6 @@ let main_term ~env =
     $ Irmin_server.Cli.codec
     $ Irmin_server.Cli.config_path
     $ dashboard
+    $ max_message_size
     $ fingerprint
     $ setup_log)
