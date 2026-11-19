@@ -20,8 +20,6 @@ open Lwt.Syntax
 open Lwt.Infix
 include Client_intf
 
-exception Continue
-
 module Conf = struct
   include Irmin.Backend.Conf
 
@@ -36,9 +34,13 @@ module Conf = struct
 
   let hostname =
     Irmin.Backend.Conf.key ~spec "hostname" Irmin.Type.string "127.0.0.1"
+
+  let max_message_size =
+    Irmin.Backend.Conf.key ~spec "max-message-size" Irmin.Type.int
+      Conn.default_max_message_size
 end
 
-let config ?(tls = false) ?hostname uri =
+let config ?(tls = false) ?hostname ?max_message_size uri =
   let default_host = Uri.host_with_default ~default:"127.0.0.1" uri in
   let config =
     Irmin.Backend.Conf.add (Irmin.Backend.Conf.empty Conf.spec) Conf.uri uri
@@ -47,7 +49,10 @@ let config ?(tls = false) ?hostname uri =
     Irmin.Backend.Conf.add config Conf.hostname
       (Option.value ~default:default_host hostname)
   in
-  Irmin.Backend.Conf.add config Conf.tls tls
+  let config = Irmin.Backend.Conf.add config Conf.tls tls in
+  match max_message_size with
+  | None -> config
+  | Some size -> Irmin.Backend.Conf.add config Conf.max_message_size size
 
 module Client (I : IO) (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) =
 struct
@@ -92,11 +97,18 @@ struct
     in
     client
 
-  let lock t f = Lwt_mutex.with_lock t.lock f [@@inline]
+  let close_quietly t =
+    Lwt.catch
+      (fun () -> close t)
+      (fun exn ->
+        [%log.debug "Cannot close the connection: %a" Fmt.exn exn];
+        Lwt.return_unit)
 
-  let send_command_header t (module Cmd : C.CMD) =
-    let header = Conn.Request.v_header ~command:Cmd.name in
-    Conn.Request.write_header t.conn header
+  let close_and_fail t exn =
+    let* () = close_quietly t in
+    Lwt.fail exn
+
+  let lock t f = Lwt_mutex.with_lock t.lock f [@@inline]
 
   let recv (t : t) name ty =
     let* res = Conn.Response.read_header t.conn in
@@ -115,11 +127,22 @@ struct
     else
       let name = Cmd.name in
       [%log.debug "Starting request: command=%s" name];
+      let header = Conn.Request.v_header ~command:name in
+      (* An exchange which stops before its end leaves the connection in a
+         state where it cannot be used any more *)
+      let lost = close_and_fail t in
       lock t (fun () ->
-          let* () = send_command_header t (module Cmd) in
-          let* () = Conn.write t.conn Cmd.req_t a in
-          let* () = IO.flush t.conn.oc in
-          recv t name Cmd.res_t)
+          if t.closed then raise Irmin.Closed;
+          let* () =
+            Lwt.catch
+              (fun () -> Conn.Request.write t.conn header Cmd.req_t a)
+              (function
+                | Irmin_server.Conn.Message_too_large _ as exn ->
+                    (* Nothing has been sent *)
+                    Lwt.fail exn
+                | exn -> lost exn)
+          in
+          Lwt.catch (fun () -> recv t name Cmd.res_t) lost)
 
   let request t cmd a = Lwt_eio.run_lwt @@ fun () -> request_lwt t cmd a
 
@@ -127,12 +150,10 @@ struct
     let* _status = Conn.Response.read_header t.conn in
     Conn.read t.conn
       (Irmin.Type.pair Store.Branch.t (Irmin.Diff.t Store.commit_key_t))
-    >|= Error.unwrap "recv_branch_diff"
 
   let recv_branch_key_diff (t : t) =
     let* _status = Conn.Response.read_header t.conn in
     Conn.read t.conn (Irmin.Diff.t Store.commit_key_t)
-    >|= Error.unwrap "recv_branch_key_diff"
 end
 
 module Make (IO : IO) (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) =
@@ -148,18 +169,28 @@ struct
   let rec connect ?ctx config =
     let ctx = Option.value ~default:(Lazy.force IO.default_ctx) ctx in
     let client = Client.mk_client config in
+    let max_message_size = Conf.get config Conf.max_message_size in
+    let* () =
+      Lwt.wrap (fun () ->
+          Conn.Handshake.V1.check_max_message_size
+            (module Store)
+            max_message_size)
+    in
     let* ic, oc = IO.connect ~ctx client in
-    let conn = Conn.v ic oc in
-    let+ ok = Conn.Handshake.V1.send (module Store) conn in
-    if not ok then Error.raise_error "invalid handshake"
-    else
-      let t =
-        Client.{ config; ctx; conn; closed = false; lock = Lwt_mutex.create () }
-      in
-      t
+    let conn = Conn.v ~max_message_size ic oc in
+    let t =
+      Client.{ config; ctx; conn; closed = false; lock = Lwt_mutex.create () }
+    in
+    (* The connection is closed when it is not given to the caller *)
+    Lwt.catch
+      (fun () ->
+        let+ ok = Conn.Handshake.V1.send (module Store) conn in
+        if not ok then Error.raise_error "invalid handshake";
+        t)
+      (Client.close_and_fail t)
 
   and reconnect t =
-    let* () = Lwt.catch (fun () -> Client.close t) (fun _ -> Lwt.return_unit) in
+    let* () = Client.close_quietly t in
     let+ conn = connect ~ctx:t.ctx t.Client.config in
     t.conn <- conn.conn;
     t.closed <- false
@@ -331,55 +362,88 @@ struct
 
       type watch = t
 
-      let watch t ?init f =
-        Lwt_eio.run_lwt @@ fun () ->
-        let f key diff = Lwt_eio.run_eio @@ fun () -> f key diff in
-        let* t = dup t in
-        let* () =
-          request_lwt t (module Watch) init >|= Error.unwrap "Branch.watch"
+      (* The watch is over: a failure to close its connection is only
+         logged. *)
+      let close_watch t =
+        Lwt.catch
+          (fun () -> Client.close t)
+          (fun exn ->
+            [%log.err "watch: cannot close the connection: %a" Fmt.exn exn];
+            Lwt.return_unit)
+
+      (* [recv] fails when the connection is lost, and the watch stops. A
+         notification which the codec rejects is skipped: the messages are
+         prefixed with their length, so the next one can still be read. Any
+         exception raised by [recv] stops the watch: a notification which is too
+         long, for instance, has not been read. *)
+      let watch_loop t recv f =
+        let stop exn =
+          (* Nothing to do when the watch has been closed by its owner *)
+          if t.Client.closed then Lwt.return_unit
+          else (
+            (match exn with
+            | End_of_file ->
+                [%log.info "watch: connection to the server lost, stopping"]
+            | Irmin_server.Conn.Message_too_large len ->
+                [%log.err "watch: notification of %Lu bytes, stopping" len]
+            | exn -> [%log.err "watch: stopping on %a" Fmt.exn exn]);
+            close_watch t)
+        in
+        let notify = function
+          | Ok diff ->
+              Lwt.catch
+                (fun () -> f diff)
+                (fun exn ->
+                  [%log.err "watch: callback failed with %a" Fmt.exn exn];
+                  Lwt.return_unit)
+          | Error (`Msg msg) ->
+              [%log.err "watch: invalid notification: %s" msg];
+              Lwt.return_unit
         in
         let rec loop () =
-          if t.closed || Conn.is_closed t.conn then Lwt.return_unit
+          if t.Client.closed || Conn.is_closed t.conn then Lwt.return_unit
           else
-            Lwt.catch
-              (fun () ->
-                Lwt.catch
-                  (fun () -> Client.recv_branch_diff t)
-                  (fun _ -> raise Continue)
-                >>= fun (key, diff) -> f key diff >>= loop)
-              (function _ -> loop ())
+            Lwt.try_bind
+              (fun () -> recv t)
+              (fun diff -> notify diff >>= loop)
+              stop
         in
-        Lwt.async loop;
-        Lwt.return t
+        Lwt.async loop
+
+      (* The connection of a watch which cannot be set is closed. *)
+      let closing_on_error t f =
+        Lwt.catch f (fun exn ->
+            let* () = close_watch t in
+            Lwt.reraise exn)
+
+      let watch t ?init f =
+        Lwt_eio.run_lwt @@ fun () ->
+        let f (key, diff) = Lwt_eio.run_eio @@ fun () -> f key diff in
+        let* t = dup t in
+        let+ () =
+          closing_on_error t @@ fun () ->
+          request_lwt t (module Watch) init >|= Error.unwrap "Branch.watch"
+        in
+        watch_loop t Client.recv_branch_diff f;
+        t
 
       let watch_key t key ?init f =
         Lwt_eio.run_lwt @@ fun () ->
         let f x = Lwt_eio.run_eio @@ fun () -> f x in
         let* t = dup t in
-        let* () =
+        let+ () =
+          closing_on_error t @@ fun () ->
           request_lwt t (module Watch_key) (init, key)
           >|= Error.unwrap "Branch.watch_key"
         in
-        let rec loop () =
-          if t.closed || Conn.is_closed t.conn then Lwt.return_unit
-          else
-            Lwt.catch
-              (fun () ->
-                Lwt.catch
-                  (fun () -> Client.recv_branch_key_diff t)
-                  (fun _ -> raise Continue)
-                >>= f
-                >>= loop)
-              (function _ -> loop ())
-        in
-        Lwt.async loop;
-        Lwt.return t
+        watch_loop t Client.recv_branch_key_diff f;
+        t
 
-      let unwatch _t watch =
-        Lwt_eio.run_lwt @@ fun () ->
-        let* () = Conn.write watch.Client.conn Unwatch.req_t () in
-        Client.close watch
-
+      (* A watch has its own connection: the server removes the watch when
+         it is closed. With the Unix client, the loop reading the
+         notifications then stops. Closing the connection of a watch which
+         has lost it does nothing. *)
+      let unwatch _t watch = Lwt_eio.run_lwt @@ fun () -> Client.close watch
       let clear t = request t (module Clear) () |> Error.unwrap "Branch.clear"
       let close t = Lwt_eio.run_lwt @@ fun () -> Client.close t
     end
@@ -414,8 +478,8 @@ struct
 
   let close t = Lwt_eio.run_lwt @@ fun () -> Client.close t
 
-  let connect ?tls ?hostname uri =
-    let conf = config ?tls ?hostname uri in
+  let connect ?tls ?hostname ?max_message_size uri =
+    let conf = config ?tls ?hostname ?max_message_size uri in
     Repo.v conf
 
   let request_store store =
