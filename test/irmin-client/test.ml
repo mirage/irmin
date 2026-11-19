@@ -370,6 +370,120 @@ let watch_refused () =
   Alcotest.(check bool) "connection closed" true closed;
   Client.Repo.close repo
 
+(* [f repo] with a client of the server at [uri], closed afterwards. *)
+let with_repo ?max_message_size uri f =
+  let repo = Client.Repo.v (Irmin_client_unix.config ?max_message_size uri) in
+  Fun.protect ~finally:(fun () -> Client.Repo.close repo) (fun () -> f repo)
+
+(* The watches of a client are told about the changes of the other clients,
+   until they are removed. The server then keeps nothing of them. Irmin_mem
+   keeps one watch state for all its stores: the servers of the process share
+   their worker, and the count of workers is global. The tests run one after
+   the other, but the server of a previous test may still be removing its
+   watches: this test waits for their worker to end. *)
+let watch_notifications ~clock name uri () =
+  Eio.Switch.run @@ fun sw ->
+  start_server ~sw ~clock name uri;
+  let check msg f = Alcotest.(check bool) msg true (eventually ~clock f) in
+  let no_worker () = Irmin.Backend.Watch.workers () = 0 in
+  check "no watch before" no_worker;
+  with_repo uri @@ fun repo ->
+  with_repo uri @@ fun other ->
+  let t = Client.of_branch other "watched" in
+  let set v = Client.set_exn t ~info:Client.Info.none [ "a" ] v in
+  let all = ref [] and key = ref 0 in
+  let watch_all =
+    Client.Branch.watch_all repo (fun branch _ -> all := branch :: !all)
+  in
+  let watch_key = Client.Branch.watch repo "watched" (fun _ -> incr key) in
+  (* Removing a watch twice does nothing *)
+  Fun.protect ~finally:(fun () ->
+      List.iter Client.unwatch [ watch_all; watch_key ])
+  @@ fun () ->
+  set "1";
+  Client.Branch.set other "other" (Client.Head.get t);
+  check "all the branches" (fun () ->
+      List.sort String.compare !all = [ "other"; "watched" ]);
+  check "one branch" (fun () -> !key = 1);
+  Client.unwatch watch_all;
+  set "2";
+  check "one branch, again" (fun () -> !key = 2);
+  Alcotest.(check int) "global watch removed" 2 (List.length !all);
+  Client.unwatch watch_key;
+  set "3";
+  check "watches removed from the server" no_worker;
+  Alcotest.(check int) "branch watch removed" 2 !key
+
+(* A notification which is too long for the server is not sent. The next
+   ones are still received. *)
+let watch_message_size ~clock () =
+  with_small_server ~clock "watch-size.sock" @@ fun small_uri ->
+  with_repo small_uri @@ fun repo ->
+  let t = Client.of_branch repo "sizes" in
+  Client.set_exn t ~info:Client.Info.none [ "a" ] "v";
+  let head = Client.Head.get t in
+  (* The longest name fitting in a request. Its notification is longer. The
+     length of both names is written on 2 bytes, as they are between 128 and
+     16383 bytes long. *)
+  let long =
+    let size name =
+      String.length
+        (Irmin.Type.(
+           unstage (to_bin_string (pair Store.branch_t Store.commit_key_t)))
+           (name, Client.Commit.key head))
+    in
+    let overhead = size (String.make small_size 'b') - small_size in
+    String.make (small_size - overhead) 'b'
+  in
+  let received = ref [] in
+  let watch =
+    Client.Branch.watch_all repo (fun branch _ ->
+        received := branch :: !received)
+  in
+  Fun.protect ~finally:(fun () -> Client.unwatch watch) @@ fun () ->
+  Client.Branch.set repo long head;
+  Client.Branch.set repo "short" head;
+  Alcotest.(check bool)
+    "notification" true
+    (eventually ~clock (fun () -> !received <> []));
+  Alcotest.(check (list string)) "notifications" [ "short" ] !received;
+  Client.unwatch watch;
+  List.iter (Client.Branch.remove repo) [ long; "short"; "sizes" ]
+
+(* A notification which is too long for the client cannot be skipped, as it
+   has not been read: the watch stops. The client can still be used. *)
+let client_watch_message_size ~clock () =
+  with_small_server ~clock "client-watch-size.sock" @@ fun small_uri ->
+  with_repo small_uri @@ fun repo ->
+  with_repo ~max_message_size:256 small_uri @@ fun small ->
+  let t = Client.of_branch repo "sizes" in
+  Client.set_exn t ~info:Client.Info.none [ "a" ] "v";
+  let head = Client.Head.get t in
+  let check msg f = Alcotest.(check bool) msg true (eventually ~clock f) in
+  let received = ref [] and synced = ref [] in
+  let watch =
+    Client.Branch.watch_all small (fun branch _ ->
+        received := branch :: !received)
+  in
+  (* A watch with the default limit tells when the notifications are sent *)
+  let sync =
+    Client.Branch.watch_all repo (fun branch _ -> synced := branch :: !synced)
+  in
+  Fun.protect ~finally:(fun () -> List.iter Client.unwatch [ watch; sync ])
+  @@ fun () ->
+  (* The watch works before the long notification *)
+  Client.Branch.set repo "first" head;
+  check "first notification" (fun () -> !received = [ "first" ]);
+  let long = String.make 300 'b' in
+  Client.Branch.set repo long head;
+  Client.Branch.set repo "short" head;
+  check "notifications sent" (fun () -> List.mem "short" !synced);
+  Eio.Time.sleep clock 0.1;
+  Alcotest.(check (list string)) "notifications" [ "first" ] !received;
+  check_ping "ping after a long notification" small;
+  Client.unwatch sync;
+  List.iter (Client.Branch.remove repo) [ "first"; long; "short"; "sizes" ]
+
 (* The answers of a server which refuses the handshake of a client, with the
    error they give to the client. *)
 let refusals =
@@ -455,6 +569,17 @@ let misc ~uri ~clock client =
         ~skipped:(`Removed (commit "a"))
         ~expected:(`Added (commit "b")) );
     ("watch refused", `Quick, watch_refused);
+    ( "watch",
+      `Quick,
+      watch_notifications ~clock "Watches" (unix_uri "watches.sock") );
+    ( "watch over a websocket",
+      `Quick,
+      fun () ->
+        watch_notifications ~clock "Websocket watches"
+          (websocket_uri (free_port ()))
+          () );
+    ("watch message size", `Quick, watch_message_size ~clock);
+    ("client watch message size", `Quick, client_watch_message_size ~clock);
   ]
   @ failed_handshakes
 
@@ -635,4 +760,18 @@ let main ~env () =
 
 let () =
   Eio_main.run @@ fun env ->
-  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ -> main ~env ()
+  Lwt_eio.with_event_loop ~clock:env#clock @@ fun _ ->
+  Eio.Switch.run @@ fun sw ->
+  (* The servers of the tests run here: their watches need a switch *)
+  Irmin.Backend.Watch.set_watch_switch sw;
+  main ~env ();
+  (* The switch waits for the workers of the watches, which only end once
+     their watches are removed: a watch left behind, once notified, would
+     hang the tests. *)
+  if
+    not
+      (eventually ~clock:env#clock (fun () ->
+           Irmin.Backend.Watch.workers () = 0))
+  then
+    failwith
+      "A watch worker is still running: a notified watch was left on a server"
