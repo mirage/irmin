@@ -25,7 +25,19 @@ module type Irmin_client = sig
 
   type addr = Client.addr
 
-  val config : ?tls:bool -> ?hostname:string -> Uri.t -> Irmin.config
+  val config :
+    ?tls:bool ->
+    ?hostname:string ->
+    ?max_message_size:int ->
+    Uri.t ->
+    Irmin.config
+  (** [config uri] is the configuration of a client of the server at [uri]. The
+      client does not send nor accept the messages longer than
+      [max_message_size] bytes: the request fails with
+      {!Irmin_server.Conn.Message_too_large}. A request which is too long is not
+      sent. The client is closed when it cannot read the response. A watch stops
+      when a notification is too long. The default is
+      {!Irmin_server.Conn.default_max_message_size}. *)
 
   module Make (IO : Client.IO) (Store : Irmin.Generic_key.S) :
     S

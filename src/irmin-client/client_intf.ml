@@ -35,8 +35,15 @@ end
 module type S = sig
   include Irmin.Generic_key.S
 
-  val connect : ?tls:bool -> ?hostname:string -> Uri.t -> repo
+  val connect :
+    ?tls:bool -> ?hostname:string -> ?max_message_size:int -> Uri.t -> repo
+  (** [connect uri] is [Repo.v (config uri)]. *)
+
   val reconnect : repo -> unit Lwt.t
+  (** Connect again to the server. A client is closed when a request fails
+      before its response is read in full, as the connection cannot be used any
+      more: the next requests raise [Irmin.Closed] until [reconnect] is called.
+      The watches are not set again. *)
 
   val uri : repo -> Uri.t
   (** Get the URI the client is connected to *)
@@ -52,7 +59,10 @@ module type S = sig
   (** Ping the server *)
 
   val export : ?depth:int -> repo -> slice
+
   val import : repo -> slice -> unit
+  (** [export] and [import] send the slice as one message: a slice longer than
+      [max_message_size], on the client or on the server, is refused. *)
 
   (** The batch API is used to have better control of when data is sent between
       the client and server when manipulating trees. *)
@@ -103,7 +113,13 @@ module type Client = sig
 
   module type IO = IO
 
-  val config : ?tls:bool -> ?hostname:string -> Uri.t -> Irmin.config
+  val config :
+    ?tls:bool ->
+    ?hostname:string ->
+    ?max_message_size:int ->
+    Uri.t ->
+    Irmin.config
+  (** Same as {!Irmin_client.config}. *)
 
   module Make (I : IO) (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) :
     S
