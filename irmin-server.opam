@@ -22,6 +22,7 @@ depends: [
   "lwt_eio" {>= "0.5.1"}
   "lwt" {>= "5.4.0"}
   "conduit-lwt-unix" {>= "6.0.0"}
+  "websocket"
   "websocket-lwt-unix"
   "cohttp-lwt-unix"
   "ppx_blob" {>= "0.7.2"}

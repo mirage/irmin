@@ -1,5 +1,13 @@
 ## 4.0.0
 
+### Added
+
+- **irmin-server**
+  - Add an `allowed_origins` option to `Irmin_server_unix.Make(_).v`, and
+    `Irmin_server_unix.Origin` to write the origins (@balat)
+- **irmin-cli**
+  - Add the `--allowed-origin` option to `irmin server` (@balat)
+
 ### Changed
 
 - Convert to direct-style with Eio (#2149, @patricoferris, @ElectreAAS, @clecat, @art-w)
@@ -9,6 +17,14 @@
   - `notty` is now optional, as it does not support OCaml 5.4 yet. Without
     it, the `show` command of `irmin-tezos-explorer` only reports an error
     (@balat)
+- **irmin-server**
+  - The websocket RPC server (`ws` and `wss` schemes) checks the `Origin`
+    header of the connections: a websocket opened by a web page is refused,
+    unless the origin of the page is in `allowed_origins`. Before, any web
+    page could open a websocket to the server. The browser clients
+    (`irmin-client.jsoo`) need the origin of their page in `allowed_origins`.
+    Most other clients do not send `Origin`; a client which sends it must have
+    its origin in `allowed_origins`, or stop sending it (@balat)
 
 ## 3.11.0 (2025-06-19)
 

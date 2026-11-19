@@ -25,6 +25,10 @@ module Info (I : Irmin.Info.S) : sig
 end
 
 val config : ?tls:bool -> ?hostname:string -> Uri.t -> Irmin.config
+(** [config uri] is the configuration of a client connecting to the websocket
+    server at [uri]. The server must accept the origin of the web page: see the
+    [allowed_origins] option of [Irmin_server_unix.Make(_).v], or the
+    [--allowed-origin] option of [irmin server]. *)
 
 module Make (Store : Irmin.Generic_key.S) :
   Irmin_client.S
