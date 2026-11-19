@@ -10,6 +10,17 @@
     it, the `show` command of `irmin-tezos-explorer` only reports an error
     (@balat)
 
+### Fixed
+
+- **irmin-client**
+  - Stop the watches of the Unix client when the connection to the server is
+    lost. They were looping for ever without yielding to the scheduler. Close
+    the connection of a watch which cannot be set (#2431, @balat)
+
+- **irmin-server**
+  - Return an error instead of raising `Assert_failure` when a binary message
+    has more bytes than its value (#2431, @balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added
