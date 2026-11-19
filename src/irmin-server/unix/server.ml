@@ -22,6 +22,11 @@ include Server_intf
 
 let html = [%blob "index.html"]
 
+let is_websocket uri =
+  match Option.map String.lowercase_ascii (Uri.scheme uri) with
+  | Some ("ws" | "wss") -> true
+  | _ -> false
+
 module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   module Command = Command.Make (IO) (Codec) (Store)
   module Store = Store
@@ -33,6 +38,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     dashboard : Conduit_lwt_unix.server option;
     server : Conduit_lwt_unix.server;
     config : Irmin.config;
+    allowed_origins : Origin.t list;
     repo : Store.Repo.t;
     info : Command.Server_info.t;
   }
@@ -40,7 +46,11 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
   let readonly conf =
     Irmin.Backend.Conf.add conf Irmin_pack.Conf.Key.readonly true
 
-  let v ?tls_config ?dashboard ~uri config =
+  let v ?tls_config ?dashboard ?(allowed_origins = []) ~uri config =
+    if allowed_origins <> [] && not (is_websocket uri) then
+      [%log.warn
+        "The allowed origins are ignored: they only apply to the ws and wss \
+         schemes"];
     let scheme = Uri.scheme uri |> Option.value ~default:"tcp" in
     let* ctx, server =
       match String.lowercase_ascii scheme with
@@ -73,7 +83,7 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     let+ repo = Store.Repo.v config in
     let start_time = Unix.time () in
     let info = Command.Server_info.{ start_time } in
-    { ctx; uri; server; dashboard; config; repo; info }
+    { ctx; uri; server; dashboard; config; allowed_origins; repo; info }
 
   let commands = Hashtbl.create (List.length Command.commands)
   let () = Hashtbl.replace_seq commands (List.to_seq Command.commands)
@@ -229,7 +239,45 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
     Lwt.async (fun () -> send_oc true output_ic output_oc client);
     callback server input_ic output_oc
 
+  (* A browser sends the origin of the page opening a websocket. Without this
+     check, any page visited by someone who can reach the server could use the
+     websocket. Most other clients do not send this header. *)
+  let check_origin t req =
+    let headers = Cohttp.Request.headers req in
+    (* Only the websocket handshakes are logged: websocket-lwt-unix refuses
+       the other requests anyway. *)
+    let refused reason =
+      (match Cohttp.Header.get headers "upgrade" with
+      | Some upgrade when String.lowercase_ascii upgrade = "websocket" ->
+          [%log.warn "Websocket refused: %s" reason]
+      | _ -> ());
+      false
+    in
+    (* The browsers of 2011 implementing the drafts 7 to 10 of the protocol
+       send [Sec-WebSocket-Origin] instead. A request with both headers is
+       refused, even with the same origin. *)
+    match
+      Cohttp.Header.get_multi headers "origin"
+      @ Cohttp.Header.get_multi headers "sec-websocket-origin"
+    with
+    | [] -> true
+    | [ origin ] -> (
+        match Origin.of_string origin with
+        | Ok parsed when List.exists (Origin.equal parsed) t.allowed_origins ->
+            true
+        | _ -> refused (Fmt.str "origin %S is not allowed" origin))
+    | _ :: _ :: _ -> refused "several origins"
+
   let on_exn x = [%log.err "EXCEPTION: %s" (Printexc.to_string x)]
+
+  (* websocket-lwt-unix answers 403 to a request which is not a valid
+     websocket handshake, or whose origin [check_origin] refused, then raises
+     [Protocol_error]. This is an error of the client. Only the handshake
+     raises it here: [websocket_handler] reads the frames in its own fibers. *)
+  let on_websocket_exn = function
+    | Websocket.Protocol_error msg ->
+        [%log.info "Websocket handshake refused: %s" msg]
+    | exn -> on_exn exn
 
   let dashboard t mode =
     let list store prefix =
@@ -343,15 +391,13 @@ module Make (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) = struct
       | None -> Lwt.return_unit
     in
     let server =
-      match Uri.scheme t.uri with
-      | Some "ws" | Some "wss" ->
-          Websocket_lwt_unix.establish_standard_server ~ctx:t.ctx ~mode:t.server
-            ~on_exn
-            ~check_request:(fun _ -> true)
-            (websocket_handler t)
-      | _ ->
-          Conduit_lwt_unix.serve ?stop ~ctx:t.ctx ~on_exn ~mode:t.server
-            (fun _ ic oc -> callback t ic oc)
+      if is_websocket t.uri then
+        Websocket_lwt_unix.establish_standard_server ~ctx:t.ctx ~mode:t.server
+          ~on_exn:on_websocket_exn ~check_request:(check_origin t)
+          (websocket_handler t)
+      else
+        Conduit_lwt_unix.serve ?stop ~ctx:t.ctx ~on_exn ~mode:t.server
+          (fun _ ic oc -> callback t ic oc)
     in
     let* () = Lwt.join [ server; dashboard ] in
     Lwt.wrap (fun () -> unlink ())

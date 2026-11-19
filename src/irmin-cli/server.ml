@@ -30,7 +30,7 @@ let setup_log =
     const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
 let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
-    ~config_path (module Codec : Conn.Codec.S) fingerprint =
+    ~allowed_origins ~config_path (module Codec : Conn.Codec.S) fingerprint =
   let store, config =
     Resolver.load_config ?root ?config_path ?store ?hash ?contents ()
   in
@@ -56,13 +56,15 @@ let main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~dashboard
       | Some port -> Some (`TCP (`Port port))
       | None -> None
     in
-    let* server = Server.v ?tls_config ?dashboard ~uri config in
+    let* server =
+      Server.v ?tls_config ?dashboard ~allowed_origins ~uri config
+    in
     let root = match root with Some root -> root | None -> "" in
     Logs.app (fun l -> l "Listening on %a, store: %s" Uri.pp_hum uri root);
     Server.serve server
 
 let main readonly root uri tls (store, hash, contents) codec config_path
-    dashboard fingerprint () =
+    dashboard allowed_origins fingerprint () =
   let codec =
     match codec with
     | `Bin -> (module Conn.Codec.Bin : Conn.Codec.S)
@@ -70,7 +72,7 @@ let main readonly root uri tls (store, hash, contents) codec config_path
   in
   Lwt_main.run
   @@ main ~readonly ~root ~uri ~tls ~store ~contents ~hash ~config_path
-       ~dashboard codec fingerprint
+       ~dashboard ~allowed_origins codec fingerprint
 
 open Cmdliner
 
@@ -107,6 +109,21 @@ let dashboard =
   in
   Arg.(value @@ opt (some int) None doc)
 
+let allowed_origins =
+  let origin =
+    Arg.conv ~docv:"ORIGIN" Irmin_server_unix.Origin.(of_string, pp)
+  in
+  let doc =
+    Arg.info ~docs:"" ~docv:"ORIGIN"
+      ~doc:
+        "Accept the websocket connections of the web pages of this origin: a \
+         scheme, a host and an optional port, like https://example.org. Can be \
+         repeated. By default no web page can connect. Only for the ws and wss \
+         schemes."
+      [ "allowed-origin" ]
+  in
+  Arg.(value @@ opt_all origin [] doc)
+
 let main_term =
   Term.(
     const main
@@ -118,5 +135,6 @@ let main_term =
     $ Irmin_server.Cli.codec
     $ Irmin_server.Cli.config_path
     $ dashboard
+    $ allowed_origins
     $ fingerprint
     $ setup_log)
