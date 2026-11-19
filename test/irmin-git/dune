@@ -33,7 +33,14 @@
 (executable
  (name test_unix)
  (modules test_unix)
- (libraries alcotest irmin irmin-test test_git_unix))
+ (libraries
+  alcotest
+  eio_main
+  lwt_eio
+  irmin
+  irmin-test
+  irmin-watcher
+  test_git_unix))
 
 (rule
  (alias runtest)

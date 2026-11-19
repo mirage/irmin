@@ -9,8 +9,7 @@
   conduit-lwt-unix
   alcotest-lwt
   mirage-crypto-rng.unix
-  irmin-test
-  irmin-watcher)
+  irmin-test)
  (enabled_if
   (and
    (<> %{system} macosx)

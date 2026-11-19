@@ -27,13 +27,34 @@ module type S = sig
   val v :
     ?tls_config:[ `Cert_file of string ] * [ `Key_file of string ] ->
     ?dashboard:Conduit_lwt_unix.server ->
+    ?max_message_size:int ->
     uri:Uri.t ->
     Irmin.config ->
     t Lwt.t
-  (** Create an instance of the server *)
+  (** Create an instance of the server.
+
+      The server closes the connection of a client sending a message longer than
+      [max_message_size] bytes, and answers with an error instead of a longer
+      response. This includes the slices of [export] and [import], which are
+      sent as one message. The default is
+      {!Irmin_server.Conn.default_max_message_size}. The frames of the [ws] and
+      [wss] schemes are read before this limit applies.
+
+      It fails with [Invalid_argument] if [max_message_size] is too short for
+      the handshake, or longer than [Sys.max_string_length]. *)
 
   val serve : ?stop:unit Lwt.t -> t -> unit Lwt.t
-  (** Run the server *)
+  (** Run the server.
+
+      The notifications of the watches run on the switch given to
+      {!Irmin.Backend.Watch.set_watch_switch}, which must be called before. The
+      notifications are written with Lwt: the switch must run in the domain of
+      the server, inside [Lwt_eio.with_event_loop], and outlive the server.
+
+      A store watching a directory, such as the on-disk stores of irmin-fs and
+      irmin-git, also needs a listen hook:
+      {!Irmin.Backend.Watch.set_listen_dir_eio_hook} sets both, usually with
+      [Irmin_watcher.hook]. *)
 
   val commands : (string, Command.t) Hashtbl.t
   (** A table mapping commands to command names *)

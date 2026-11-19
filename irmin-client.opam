@@ -13,7 +13,7 @@ depends: [
   "irmin-server" {= version}
   "irmin-cli" {= version}
   "ipaddr"
-  "websocket-lwt-unix"
+  "websocket-lwt-unix" {>= "2.15"}
   "conduit-lwt-unix" {>= "6.0.0"}
   "js_of_ocaml-lwt"
   "brr" {>= "0.0.4"}
@@ -22,12 +22,8 @@ depends: [
   "lwt" {>= "5.7.0"}
   "irmin-test" {= version & with-test}
   "alcotest-lwt" {with-test & >= "1.8.0"}
-  "irmin-watcher" {= "dev" & with-test}
   "mirage-crypto-rng" {with-test & >= "2.0.0"}
   "lwt-dllist" {>= "1.0.1"}
-]
-pin-depends: [
-  [ "irmin-watcher.dev" "git+https://github.com/patricoferris/irmin-watcher#675125d9e95cd09ef0c18ab1d9d6d69a26856b9f" ]
 ]
 build: [
   ["dune" "subst"] {dev}
