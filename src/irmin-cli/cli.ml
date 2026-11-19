@@ -70,9 +70,9 @@ let pr_str = Format.pp_print_string
 
 let path =
   let path_conv =
-    let parse str = `Ok str in
+    let parse str = Ok str in
     let print ppf path = pr_str ppf path in
-    (parse, print)
+    Arg.conv (parse, print)
   in
   let doc = Arg.info ~docv:"PATH" ~doc:"Key to lookup or modify." [] in
   Arg.(required & pos 0 (some path_conv) None & doc)
@@ -81,9 +81,9 @@ type path_or_empty = Empty | Path of string
 
 let path_or_empty =
   let path_conv =
-    let parse str = `Ok (Path str) in
+    let parse str = Ok (Path str) in
     let print = Fmt.of_to_string (function Path str -> str | Empty -> "/") in
-    (parse, print)
+    Arg.conv (parse, print)
   in
   let doc =
     Arg.info [] ~docv:"PATH"
@@ -698,19 +698,19 @@ let help =
          | None -> `Help (`Pager, None)
          | Some topic -> (
              let topics = "irmin.yml" :: cmds in
-             let conv, _ =
+             let conv =
                Arg.enum (List.rev_map (fun s -> (s, s)) ("topics" :: topics))
              in
-             match conv topic with
-             | `Error e -> `Error (false, e)
-             | `Ok t when t = "topics" ->
+             match Arg.conv_parser conv topic with
+             | Error (`Msg e) -> `Error (false, e)
+             | Ok t when t = "topics" ->
                  List.iter print_endline topics;
                  `Ok ()
-             | `Ok t when t = "irmin.yml" ->
+             | Ok t when t = "irmin.yml" ->
                  `Ok
                    (Cmdliner.Manpage.print man_format Format.std_formatter
                       config_man)
-             | `Ok t -> `Help (man_format, Some t))
+             | Ok t -> `Help (man_format, Some t))
        in
        Term.(ret (mk help $ Arg.man_format $ Term.choice_names $ topic)));
   }
