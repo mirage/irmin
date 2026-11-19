@@ -413,6 +413,9 @@ struct
                       | Some (`Node k) ->
                           let f = Lazy.force node_key_as_kinded_key in
                           Some (f k)
+                      | Some (`Contents_inlined _) ->
+                          (* Inlined contents don't have their own key *)
+                          None
                       | None -> None);
                   field "list"
                     ~doc:
@@ -429,7 +432,7 @@ struct
                               let c = Store.Tree.Contents.force_exn c in
                               let f = Lazy.force contents_as_node in
                               f (c, m, absolute_path)
-                          | _ ->
+                          | `Node _ ->
                               let f = Lazy.force tree_as_node in
                               f (tree, absolute_path)));
                 ]))

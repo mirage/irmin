@@ -169,7 +169,7 @@ module type Sigs = sig
       ?ppf:Format.formatter ->
       auto_repair:bool ->
       check:
-        (kind:[> `Commit | `Contents | `Node ] ->
+        (kind:[> `Commit | `Contents | `Contents_inlined | `Node ] ->
         offset:int63 ->
         length:int ->
         Index.key ->
@@ -184,7 +184,10 @@ module type Sigs = sig
       pred:
         (X.Node.value ->
         (X.Node.Path.step option
-        * [< `Contents of XKey.t | `Inode of XKey.t | `Node of XKey.t ])
+        * [< `Contents of XKey.t
+          | `Contents_inlined of string * _
+          | `Inode of XKey.t
+          | `Node of XKey.t ])
         list) ->
       iter:
         (contents:(XKey.hash Pack_key.t -> unit) ->
@@ -192,7 +195,10 @@ module type Sigs = sig
         pred_node:
           (X.Repo.t ->
           XKey.t ->
-          [> `Contents of XKey.t | `Node of XKey.t ] list) ->
+          [> `Contents of XKey.t
+          | `Contents_inlined of XKey.t
+          | `Node of XKey.t ]
+          list) ->
         pred_commit:(X.Repo.t -> XKey.t -> [> `Node of XKey.t ] list) ->
         X.Repo.t ->
         unit) ->
@@ -239,7 +245,10 @@ module type Sigs = sig
       t ->
       S.Hash.t ->
       (S.step option
-      * [ `Contents of S.Hash.t | `Inode of S.Hash.t | `Node of S.Hash.t ])
+      * [ `Contents of S.Hash.t
+        | `Contents_inlined of S.Hash.t
+        | `Inode of S.Hash.t
+        | `Node of S.Hash.t ])
       list ->
       nb_children:int ->
       width:int ->

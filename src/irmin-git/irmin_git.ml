@@ -316,6 +316,7 @@ struct
         let commit_t t = t.commits
         let branch_t t = t.branch
         let config t = t.config
+        let inline_contents_max_bytes _ = 0
 
         let batch ?lock:_ t f =
           Contents.CA.batch t.contents @@ fun c ->

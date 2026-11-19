@@ -40,6 +40,7 @@ struct
   module X = struct
     type t =
       [ `Contents of Contents_key.t
+      | `Contents_inlined of Contents_key.t
       | `Node of Node_key.t
       | `Commit of Commit_key.t
       | `Branch of Branch.t ]
@@ -57,6 +58,7 @@ struct
     let hash (t : t) : int =
       match t with
       | `Contents c -> hash_contents c
+      | `Contents_inlined c -> hash_contents c
       | `Node n -> hash_node n
       | `Commit c -> hash_commit c
       | `Branch b -> hash_branch b
@@ -244,6 +246,7 @@ struct
       | `Node n -> str Node_key.t n
       | `Commit c -> str Commit_key.t c
       | `Contents c -> str Contents_key.t c
+      | `Contents_inlined c -> str Contents_key.t c
       | `Branch b -> str Branch.t b
 
     let vertex_attributes k = !vertex_attributes k

@@ -74,10 +74,12 @@ struct
     let unsafe_keyvalue_of_hashvalue = function
       | `Contents (h, m) -> `Contents (Key.unfindable_of_hash h, m)
       | `Node h -> `Node (Key.unfindable_of_hash h)
+      | `Contents_inlined (bytes, m) -> `Contents_inlined (bytes, m)
 
     let hashvalue_of_keyvalue = function
       | `Contents (k, m) -> `Contents (Key.to_hash k, m)
       | `Node k -> `Node (Key.to_hash k)
+      | `Contents_inlined (bytes, m) -> `Contents_inlined (bytes, m)
   end
 
   module Step =
@@ -321,6 +323,7 @@ struct
 
     type value =
       | Contents of name * address * metadata
+      | Contents_inlined_value of name * string * metadata
       | Node of name * address
 
     let is_default = T.(equal_metadata Metadata.default)
@@ -352,6 +355,11 @@ struct
           let x_ih = [%typ: dict_key * H.t * metadata]
           let x_do = [%typ: step * pack_offset * metadata]
           let x_dh = [%typ: step * H.t * metadata]
+          (* For inlined contents values (bytes stored inline): *)
+          let inlined_i   = [%typ: dict_key * string]
+          let inlined_x_i = [%typ: dict_key * string * metadata]
+          let inlined_d   = [%typ: step * string]
+          let inlined_x_d = [%typ: step * string * metadata]
       end in
       let open Irmin.Type in
       variant "Compress.value"
@@ -360,6 +368,7 @@ struct
              to the cases, so should not be changed: *)
           contents_io contents_x_io node_io contents_ih contents_x_ih node_ih
           contents_do contents_x_do node_do contents_dh contents_x_dh node_dh
+          inlined_i inlined_x_i inlined_d inlined_x_d
         -> function
         | Node (Indirect n, Offset o) -> node_io (n, o)
         | Node (Indirect n, Hash h)   -> node_ih (n, h)
@@ -368,7 +377,9 @@ struct
         | Contents (Indirect n, Offset o, m) -> if is_default m then contents_io (n, o) else contents_x_io (n, o, m)
         | Contents (Indirect n, Hash h,   m) -> if is_default m then contents_ih (n, h) else contents_x_ih (n, h, m)
         | Contents (Direct n,   Offset o, m) -> if is_default m then contents_do (n, o) else contents_x_do (n, o, m)
-        | Contents (Direct n,   Hash h,   m) -> if is_default m then contents_dh (n, h) else contents_x_dh (n, h, m))
+        | Contents (Direct n,   Hash h,   m) -> if is_default m then contents_dh (n, h) else contents_x_dh (n, h, m)
+        | Contents_inlined_value (Indirect n, bytes, m) -> if is_default m then inlined_i (n, bytes) else inlined_x_i (n, bytes, m)
+        | Contents_inlined_value (Direct n,   bytes, m) -> if is_default m then inlined_d (n, bytes) else inlined_x_d (n, bytes, m))
       |~ case1 "contents-io"   Payload.io   (fun (n, o)    -> Contents (Indirect n, Offset o, Metadata.default))
       |~ case1 "contents-x-io" Payload.x_io (fun (n, i, m) -> Contents (Indirect n, Offset i, m))
       |~ case1 "node-io"       Payload.io   (fun (n, i)    -> Node (Indirect n, Offset i))
@@ -381,6 +392,10 @@ struct
       |~ case1 "contents-dh"   Payload.dh   (fun (n, i)    -> Contents (Direct n, Hash i, Metadata.default))
       |~ case1 "contents-x-dh" Payload.x_dh (fun (n, i, m) -> Contents (Direct n, Hash i, m))
       |~ case1 "node-dd"       Payload.dh   (fun (n, i)    -> Node (Direct n, Hash i))
+      |~ case1 "inlined-i"     Payload.inlined_i   (fun (n, bytes)    -> Contents_inlined_value (Indirect n, bytes, Metadata.default))
+      |~ case1 "inlined-x-i"   Payload.inlined_x_i (fun (n, bytes, m) -> Contents_inlined_value (Indirect n, bytes, m))
+      |~ case1 "inlined-d"     Payload.inlined_d   (fun (n, bytes)    -> Contents_inlined_value (Direct n, bytes, Metadata.default))
+      |~ case1 "inlined-x-d"   Payload.inlined_x_d (fun (n, bytes, m) -> Contents_inlined_value (Direct n, bytes, m))
       |> sealv
 
     type v = Values of value list | Tree of tree
@@ -411,6 +426,8 @@ struct
       | V1_unstable of v
       | V2_root of v1
       | V2_nonroot of v1
+      | V3_root of v1
+      | V3_nonroot of v1
     [@@deriving irmin]
 
     let encode_bin_tv_staggered ({ v; _ } as tv) kind f =
@@ -433,17 +450,19 @@ struct
       match tv with
       | V1_stable _ -> assert false
       | V1_unstable _ -> assert false
-      | V2_root { length; v } when is_real_length length ->
-          encode_bin_kind Pack_value.Kind.Inode_v2_root f;
+      | V2_root _ -> assert false
+      | V2_nonroot _ -> assert false
+      | V3_root { length; v } when is_real_length length ->
+          encode_bin_kind Pack_value.Kind.Inode_v3_root f;
           encode_bin_int length f;
           encode_bin_v v f
-      | V2_nonroot { length; v } when is_real_length length ->
-          encode_bin_kind Pack_value.Kind.Inode_v2_nonroot f;
+      | V3_nonroot { length; v } when is_real_length length ->
+          encode_bin_kind Pack_value.Kind.Inode_v3_nonroot f;
           encode_bin_int length f;
           encode_bin_v v f
-      | V2_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v2_root f
-      | V2_nonroot tv ->
-          encode_bin_tv_staggered tv Pack_value.Kind.Inode_v2_nonroot f
+      | V3_root tv -> encode_bin_tv_staggered tv Pack_value.Kind.Inode_v3_root f
+      | V3_nonroot tv ->
+          encode_bin_tv_staggered tv Pack_value.Kind.Inode_v3_nonroot f
 
     let decode_bin_tv s off =
       let kind = decode_bin_kind s off in
@@ -464,6 +483,16 @@ struct
           assert (is_real_length length);
           let v = decode_bin_v s off in
           V2_nonroot { length; v }
+      | Inode_v3_root ->
+          let length = decode_bin_int s off in
+          assert (is_real_length length);
+          let v = decode_bin_v s off in
+          V3_root { length; v }
+      | Inode_v3_nonroot ->
+          let length = decode_bin_int s off in
+          assert (is_real_length length);
+          let v = decode_bin_v s off in
+          V3_nonroot { length; v }
       | Commit_v1 | Commit_v2 -> assert false
       | Contents -> assert false
       | Dangling_parent_commit -> assert false
@@ -477,7 +506,7 @@ struct
         | Pack_value.Kind.Inode_v1_unstable | Inode_v1_stable ->
             let vlen = dynamic_size_of_v_encoding s !offref in
             magic_len + vlen
-        | Inode_v2_root | Inode_v2_nonroot ->
+        | Inode_v2_root | Inode_v2_nonroot | Inode_v3_root | Inode_v3_nonroot ->
             let before = !offref in
             let vlen = decode_bin_int s offref in
             let after = !offref in
@@ -496,7 +525,7 @@ struct
     let v ~root ~hash v =
       let length = no_length in
       let tv =
-        if root then V2_root { v; length } else V2_nonroot { v; length }
+        if root then V3_root { v; length } else V3_nonroot { v; length }
       in
       { hash; tv }
 
@@ -527,6 +556,8 @@ struct
           depth = 0
       | { tv = V2_root _; _ } -> true
       | { tv = V2_nonroot _; _ } -> false
+      | { tv = V3_root _; _ } -> true
+      | { tv = V3_nonroot _; _ } -> false
   end
 
   (** [Val_impl] defines the recursive structure of inodes.
@@ -798,6 +829,7 @@ struct
                 match v with
                 | `Node _ as k -> (Some s, k)
                 | `Contents (k, _) -> (Some s, `Contents k)
+                | `Contents_inlined _ as k -> (Some s, k)
               in
               v :: acc)
             l []
@@ -959,6 +991,7 @@ struct
       type kinded_key =
         | Contents of contents_key
         | Contents_x of metadata * contents_key
+        | Contents_inlined_value of string * metadata
         | Node of node_key
       [@@deriving irmin]
 
@@ -980,12 +1013,15 @@ struct
               { name; key = Contents contents_key }
             else { name; key = Contents_x (m, contents_key) }
         | `Node node_key -> { name; key = Node node_key }
+        | `Contents_inlined (bytes, m) ->
+            { name; key = Contents_inlined_value (bytes, m) }
 
       let of_entry e =
         ( e.name,
           match e.key with
           | Contents key -> `Contents (key, Metadata.default)
           | Contents_x (m, key) -> `Contents (key, m)
+          | Contents_inlined_value (bytes, m) -> `Contents_inlined (bytes, m)
           | Node key -> `Node key )
 
       type error =
@@ -1564,7 +1600,10 @@ struct
     let is_tree t = match t.v with Tree _ -> true | Values _ -> false
 
     module Proof = struct
-      type value = [ `Contents of hash * metadata | `Node of hash ]
+      type value =
+        [ `Contents of hash * metadata
+        | `Contents_inlined of string * metadata
+        | `Node of hash ]
       [@@deriving irmin]
 
       type t =
@@ -1720,7 +1759,10 @@ struct
     module Snapshot = struct
       include T
 
-      type kinded_hash = Contents of hash * metadata | Node of hash
+      type kinded_hash =
+        | Contents of hash * metadata
+        | Contents_inlined of string * metadata
+        | Node of hash
       [@@deriving irmin]
 
       type entry = { step : string; hash : kinded_hash } [@@deriving irmin]
@@ -1749,6 +1791,7 @@ struct
         | Snapshot.Contents (hash, m) ->
             let key = index hash in
             `Contents (key, m)
+        | Contents_inlined (bytes, m) -> `Contents_inlined (bytes, m)
         | Node hash ->
             let key = index hash in
             `Node key )
@@ -1788,9 +1831,9 @@ struct
     exception Invalid_depth of { expected : int; got : int; v : t }
 
     let kind (t : t) =
-      (* This is the kind of newly appended values, let's use v2 then *)
-      if t.root then Pack_value.Kind.Inode_v2_root
-      else Pack_value.Kind.Inode_v2_nonroot
+      (* This is the kind of newly appended values, let's use v3 then *)
+      if t.root then Pack_value.Kind.Inode_v3_root
+      else Pack_value.Kind.Inode_v3_nonroot
 
     let repr_size = Mem.repr_size t
 
@@ -1860,6 +1903,9 @@ struct
             let s = step s in
             let v = address_of_key n in
             Compress.Node (s, v)
+        | s, `Contents_inlined (bytes, m) ->
+            let s = step s in
+            Compress.Contents_inlined_value (s, bytes, m)
       in
       (* List.map is fine here as the number of entries is small *)
       let v : T.key Bin.v -> Compress.v = function
@@ -1905,6 +1951,9 @@ struct
             let name = step n in
             let hash = key h in
             (name, `Contents (hash, metadata))
+        | Contents_inlined_value (n, bytes, metadata) ->
+            let name = step n in
+            (name, `Contents_inlined (bytes, metadata))
         | Node (n, h) ->
             let name = step n in
             let hash = key h in
@@ -1918,6 +1967,8 @@ struct
           | V1_unstable v -> v
           | V2_root { v; _ } -> v
           | V2_nonroot { v; _ } -> v
+          | V3_root { v; _ } -> v
+          | V3_nonroot { v; _ } -> v
         in
         match v with
         | Values vs -> Values (List.rev_map value (List.rev vs))
@@ -1938,6 +1989,7 @@ struct
         match tv with
         | V1_stable v | V1_unstable v -> v
         | V2_root { v; _ } | V2_nonroot { v; _ } -> v
+        | V3_root { v; _ } | V3_nonroot { v; _ } -> v
       in
       let entry_of_address = function
         | Compress.Offset offset -> entry_of_offset offset
@@ -1945,10 +1997,13 @@ struct
       in
       match v with
       | Values ls ->
-          List.map
+          List.filter_map
             (function
               | Compress.Contents (_, address, _) | Node (_, address) ->
-                  entry_of_address address)
+                  Some (entry_of_address address)
+              | Contents_inlined_value _ ->
+                  (* Inlined contents don't have a separate pack entry *)
+                  None)
             ls
       | Tree { entries; _ } ->
           List.map
@@ -1967,6 +2022,8 @@ struct
       | `Node node_key ->
           let h = Key.to_hash node_key in
           { step; hash = Node h }
+      | `Contents_inlined (bytes, m) ->
+          { Snapshot.step; hash = Contents_inlined (bytes, m) }
 
     (* The implementation of [of_snapshot] is in the module [Val]. This is
        because we cannot compute the hash of a root from [Bin]. *)
@@ -2223,7 +2280,10 @@ struct
       type node_key = hash [@@deriving irmin]
       type contents_key = hash [@@deriving irmin]
 
-      type value = [ `Contents of hash * metadata | `Node of hash ]
+      type value =
+        [ `Contents of hash * metadata
+        | `Contents_inlined of string * metadata
+        | `Node of hash ]
       [@@deriving irmin]
 
       let of_node t = t
@@ -2251,15 +2311,16 @@ struct
 
       let find ?cache t s = find ?cache t s |> Option.map hashvalue_of_keyvalue
 
-      let merge =
-        let promote_merge :
-            hash option Irmin.Merge.t -> key option Irmin.Merge.t =
-         fun t ->
-          Irmin.Merge.like [%typ: key option] t (Option.map Key.to_hash)
+      let merge ~contents ~node =
+        let promote_merge_contents =
+          Irmin.Merge.like [%typ: key option] contents (Option.map Key.to_hash)
             (Option.map Key.unfindable_of_hash)
         in
-        fun ~contents ~node ->
-          merge ~contents:(promote_merge contents) ~node:(promote_merge node)
+        let promote_merge_node =
+          Irmin.Merge.like [%typ: key option] node (Option.map Key.to_hash)
+            (Option.map Key.unfindable_of_hash)
+        in
+        merge ~contents:promote_merge_contents ~node:promote_merge_node
 
       module Proof = I.Proof
 

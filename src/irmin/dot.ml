@@ -181,7 +181,10 @@ module Make (S : Store.Generic_key.S) = struct
                   (`Contents v)
             | `Node n ->
                 let n = Node.Key.to_hash n in
-                add_edge (`Node k) [ `Style `Solid; label_of_step l ] (`Node n))
+                add_edge (`Node k) [ `Style `Solid; label_of_step l ] (`Node n)
+            | `Contents_inlined _ ->
+                (* Inlined contents are embedded in the node, no edge to draw *)
+                ())
           (Node.Val.list t))
       !nodes;
     List.iter

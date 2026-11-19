@@ -185,7 +185,11 @@ module S = Inode_modules (Conf) (Schema) (String_contents)
 open S
 open Schema
 
-type pred = [ `Contents of Key.t | `Inode of Key.t | `Node of Key.t ]
+type pred =
+  [ `Contents of Key.t
+  | `Contents_inlined of string * unit
+  | `Inode of Key.t
+  | `Node of Key.t ]
 [@@deriving irmin]
 
 let pp_pred = Irmin.Type.pp pred_t
@@ -802,7 +806,7 @@ module Inode_tezos = struct
     let checks =
       [
         ("hash", hex_of_h);
-        ("magic R", hex_encode "R");
+        ("magic S", hex_encode "S");
         ("data length", "48");
         ("Values", "00");
         ("length", "02");
@@ -847,7 +851,7 @@ module Inode_tezos = struct
     let checks =
       [
         ("hash", hex_of_h);
-        ("magic R", hex_encode "R");
+        ("magic S", hex_encode "S");
         ("data length", "48");
         ("Tree", "01");
         ("depth", "00");

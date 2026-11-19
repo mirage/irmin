@@ -1,0 +1,3 @@
+(executable
+ (name main)
+ (libraries irmin irmin-pack irmin-tezos eio_main cmdliner))

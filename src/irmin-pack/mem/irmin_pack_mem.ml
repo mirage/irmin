@@ -139,6 +139,12 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
         let branch_t t = t.branch
         let config t = t.config
 
+        let inline_contents_max_bytes t =
+          let c = config t in
+          if Irmin_pack.Conf.inline_contents c then
+            Irmin_pack.Conf.inline_contents_max_bytes c
+          else 0
+
         let batch ?lock:_ t f =
           Commit.Indexable.batch t.commit (fun commit ->
               Node.Indexable.batch t.node (fun node ->
