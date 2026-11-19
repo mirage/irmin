@@ -677,6 +677,42 @@ let test_intermediate_inode_as_root () =
   let* () = test_intermediate_inode_as_root ~indexing_strategy:`always in
   test_intermediate_inode_as_root ~indexing_strategy:`minimal
 
+(* [with_handler] lets a node decoded with [Irmin.Type], whose children are
+   stored apart, read them to compute its hash. *)
+let test_truncated_with_handler () =
+  let* t = Context.get_store ~indexing_strategy:`always () in
+  let { Context.foo; bar; _ } = t in
+  let gen_step = Inode_permutations_generator.gen_step (module Inter) in
+  (* A stable inode of tag Tree. *)
+  let v =
+    Inode.Val.of_list
+      [
+        (gen_step [ 0; 0 ], normal foo);
+        (gen_step [ 1; 0 ], normal bar);
+        (gen_step [ 0; 1 ], normal bar);
+      ]
+  in
+  let* key = Inode.batch t.store (fun store -> Inode.add store v) in
+  let* stored = Inode.find t.store key in
+  let decoded =
+    match stored with
+    | Some v ->
+        Irmin.Type.(unstage (to_bin_string Inode.Val.t)) v
+        |> Irmin.Type.(unstage (of_bin_string Inode.Val.t))
+        |> Result.get_ok
+    | None -> Alcotest.fail "inode not found"
+  in
+  let module H = Irmin.Hash.Typed (Hash) (Inode.Val) in
+  (match H.hash decoded with
+  | _ -> Alcotest.fail "hash without the children"
+  | exception Inode.Val.Dangling_hash _ -> ());
+  let find ~expected_depth:_ key =
+    Inode.unsafe_find ~check_integrity:true t.store key
+  in
+  check_hash "hash with the children" (Key.to_hash key)
+    (H.hash (Inode.Val.with_handler (fun _ -> find) decoded));
+  Context.close t
+
 let test_concrete_inodes ~indexing_strategy =
   let* t = Context.get_store ~indexing_strategy () in
   let { Context.foo; bar; _ } = t in
@@ -1020,6 +1056,7 @@ let tests =
       test_representation_uniqueness_maxdepth_3;
     tc "test encode bin of values" Inode_tezos.test_encode_bin_values;
     tc "test intermediate inode as root" test_intermediate_inode_as_root;
+    tc "with_handler on truncated inodes" test_truncated_with_handler;
     tc_sync "Child_ordering.seeded_hash" Child_ordering.test_seeded_hash;
     tc_sync "Child_ordering.hash_bits" Child_ordering.test_hash_bits;
     tc_sync "Child_ordering.custom" Child_ordering.test_custom;

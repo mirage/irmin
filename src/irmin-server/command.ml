@@ -16,6 +16,7 @@
 
 open Lwt.Syntax
 open Lwt.Infix
+open Import
 include Command_intf
 
 module Make (IO : Conn.IO) (Codec : Conn.Codec.S) (Store : Irmin.Generic_key.S) =
@@ -85,6 +86,19 @@ struct
 
     open Store.Backend
 
+    let equal_hash = Irmin.Type.(unstage (equal Store.Hash.t))
+    let pp_hash = Irmin.Type.pp Store.Hash.t
+
+    (* [unsafe_add] trusts the hash it is given, which comes from the client
+       here. A wrong one could corrupt the object of this hash. *)
+    let with_valid_hash conn ~name hash expected f =
+      if equal_hash hash expected then f ()
+      else (
+        [%log.warn
+          "%s: refused hash %a, the hash of the value is %a" name pp_hash hash
+            pp_hash expected];
+        Return.err conn (name ^ ": the hash is not the hash of the value"))
+
     module Contents = struct
       type key = Contents.key
 
@@ -145,6 +159,8 @@ struct
         type res = key [@@deriving irmin]
 
         let run conn ctx _ (hash, value) =
+          with_valid_hash conn ~name hash (Contents.Hash.hash value)
+          @@ fun () ->
           let* k =
             Repo.batch ctx.repo (fun contents _ _ ->
                 Contents.unsafe_add contents hash value)
@@ -237,7 +253,57 @@ struct
         type req = Hash.t * value [@@deriving irmin]
         type res = key [@@deriving irmin]
 
+        (* The inodes at a given depth hold disjoint and non-empty sets of
+           entries: there are fewer of them than entries in the node. *)
+        let count_reads value =
+          let reads = Hashtbl.create 8 in
+          fun ~expected_depth ->
+            let n =
+              1
+              + Option.value ~default:0 (Hashtbl.find_opt reads expected_depth)
+            in
+            if n > Node.Val.length value then
+              Error.raise_error (name ^ ": too many child inodes");
+            Hashtbl.replace reads expected_depth n
+
+        let not_found () =
+          Error.raise_error (name ^ ": cannot find a child inode in the store")
+
+        exception Not_read of int * Node.key
+
+        (* irmin-pack can decode a node with many entries as a root inode
+           which points to child inodes stored apart. [Node.Hash.hash] needs
+           all the entries: the handler of the value reads these children
+           from the store. A handler cannot wait for Lwt, so it fails on each
+           child not read yet, which is then read before hashing again. The
+           children read are kept in the value, so each one is read once. *)
+        let hash_of_value repo value =
+          let node = Repo.node_t repo in
+          let count = count_reads value in
+          let read = ref [] in
+          let find ~expected_depth key =
+            let hash = Node.Key.to_hash key in
+            match List.find_opt (fun (h, _) -> equal_hash h hash) !read with
+            | Some (_, child) -> Some child
+            | None -> raise (Not_read (expected_depth, key))
+          in
+          let handled = Node.Val.with_handler (fun _ -> find) value in
+          let rec hash () =
+            match Node.Hash.hash handled with
+            | hash -> Lwt.return hash
+            | exception Not_read (expected_depth, key) -> (
+                count ~expected_depth;
+                Node.find node key >>= function
+                | Some child ->
+                    read := (Node.Key.to_hash key, child) :: !read;
+                    hash ()
+                | None -> not_found ())
+          in
+          hash ()
+
         let run conn ctx _ (hash, value) =
+          let* expected = hash_of_value ctx.repo value in
+          with_valid_hash conn ~name hash expected @@ fun () ->
           let* k =
             Repo.batch ctx.repo (fun _ node _ ->
                 Node.unsafe_add node hash value)
@@ -332,6 +398,7 @@ struct
         type res = key [@@deriving irmin]
 
         let run conn ctx _ (hash, value) =
+          with_valid_hash conn ~name hash (Commit.Hash.hash value) @@ fun () ->
           let* k =
             Repo.batch ctx.repo (fun _ _ commit ->
                 Commit.unsafe_add commit hash value)
