@@ -28,13 +28,11 @@ let () =
   Logs.set_reporter (Logs_fmt.reporter ())
 
 module type R = sig
-  val pid : int
   val uri : Uri.t
   val kind : string
 end
 
 module Make (R : R) = struct
-  let () = at_exit (fun () -> try Unix.kill R.pid Sys.sigint with _ -> ())
   let config = Irmin_client_unix.config R.uri
   let client = Lwt_main.run (Client.Repo.v config)
   let clean ~config:_ = Client.Branch.remove client "main"
@@ -48,22 +46,23 @@ module Make (R : R) = struct
       ~config ~clean ()
 end
 
-let kind, pid, uri = run_server `Unix_domain
+let unix_server = run_server `Unix_domain
+let tcp_server = run_server `Tcp
+let websocket_server = run_server `Websocket
 
 module Unix_socket = Make (struct
-  let pid = pid
-  let uri = uri
-  let kind = kind
+  let kind, _, uri = unix_server
 end)
 
 module Tcp_socket = Make (struct
-  let kind, pid, uri = run_server `Tcp
+  let kind, _, uri = tcp_server
 end)
 
 module Websocket = Make (struct
-  let kind, pid, uri = run_server `Websocket
+  let kind, _, uri = websocket_server
 end)
 
+let _, _, uri = unix_server
 let config = Irmin_client_unix.config uri
 let client = Lwt_main.run (Client.Repo.v config)
 let client () = Client.dup client
