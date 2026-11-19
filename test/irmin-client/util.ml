@@ -110,6 +110,12 @@ let run_server ~sw ~clock s =
 let timeout_delay = 20.
 let timeout f = Lwt_unix.with_timeout timeout_delay f
 
+(* The number of file descriptors of the process, if the system tells it. *)
+let open_fds () =
+  if Sys.file_exists "/proc/self/fd" then
+    Some (Array.length (Sys.readdir "/proc/self/fd"))
+  else None
+
 (* [f ()] must raise an exception accepted by [expected], before the
    timeout. The timeout is not given to [expected]: a test which does not
    end fails. *)
