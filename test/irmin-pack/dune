@@ -34,7 +34,8 @@
   irmin-tezos
   logs
   fpath
-  hex)
+  hex
+  unix)
  (preprocess
   (pps ppx_irmin.internal)))
 

@@ -72,6 +72,36 @@ module Unix = struct
     try Ok (f ())
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
+  (* [misc_error_of_eio exn err] is the Unix error of [err], raised by [exn].
+     The Unix backends of Eio wrap most of their errors in
+     [Eio_unix.Unix_error]. The other errors get the closest Unix error and the
+     message of [exn]: a path outside the sandbox of a directory, or, with
+     recent versions of Eio, a loop of symbolic links ([Eio.Fs.Symlink], which
+     becomes [EIO] as older versions do not have it). *)
+  let misc_error_of_eio exn : Eio.Exn.err -> misc_error = function
+    | Eio.Exn.X (Eio_unix.Unix_error (e, s1, s2))
+    | Eio.Fs.E
+        ( Already_exists (Eio_unix.Unix_error (e, s1, s2))
+        | Not_found (Eio_unix.Unix_error (e, s1, s2))
+        | Permission_denied (Eio_unix.Unix_error (e, s1, s2)) ) ->
+        (e, s1, s2)
+    | err ->
+        let e =
+          match err with
+          | Eio.Fs.E (Already_exists _) -> Unix.EEXIST
+          | Eio.Fs.E (Not_found _) -> Unix.ENOENT
+          | Eio.Fs.E (Permission_denied _) -> Unix.EACCES
+          | Eio.Fs.E File_too_large -> Unix.EFBIG
+          | _ -> Unix.EIO
+        in
+        (e, "", Printexc.to_string exn)
+
+  (* [catch_eio f] is [f ()], or [Error (`Io_misc _)] if it raises [Eio.Io]. *)
+  let catch_eio f =
+    try f ()
+    with Eio.Io (err, _) as exn ->
+      Error (`Io_misc (misc_error_of_eio exn err))
+
   type file =
     | RO of Eio.File.ro_ty Eio.Resource.t
     | RW of Eio.File.rw_ty Eio.Resource.t
@@ -87,59 +117,73 @@ module Unix = struct
   }
 
   let classify_path path =
-    match Eio.Path.kind ~follow:false path with
+    match
+      match Eio.Path.kind ~follow:true path with
+      | `Not_found ->
+          (* A dangling symbolic link: nothing can be created at its path. *)
+          Eio.Path.kind ~follow:false path
+      | kind -> kind
+    with
     | `Regular_file -> `File
     | `Directory -> `Directory
     | `Not_found -> `No_such_file_or_directory
     | _ -> `Other
+    | exception (Eio.Io _ as exn) ->
+        (* For instance a loop of symbolic links. *)
+        [%log.warn "Cannot classify %a: %a" Eio.Path.pp path Fmt.exn exn];
+        `Other
 
   let readdir p = Eio.Path.read_dir p
   let default_create_perm = 0o644
   let default_mkdir_perm = 0o755
 
   let create ~sw ~path ~overwrite =
-    try
-      match Eio.Path.kind ~follow:false path with
-      | `Not_found ->
-          let file =
-            RW
-              (Eio.Path.open_out ~sw ~create:(`Exclusive default_create_perm)
-                 path)
-          in
-          Ok { file; closed = false; path }
-      | `Regular_file -> (
-          match overwrite with
-          | true ->
-              (* The file exists, truncate it and use it. An exception will be
-                 triggered if we don't have the permissions *)
-              let file =
-                RW
-                  (Eio.Path.open_out ~sw
-                     ~create:(`Or_truncate default_create_perm) path)
-              in
-              Ok { file; closed = false; path }
-          | false -> Error (`File_exists (Eio.Path.native_exn path)))
-      | _ -> assert false
-    with
-    | Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
-    | Sys_error _ -> assert false
+    catch_eio @@ fun () ->
+    (* A dangling symbolic link is [`Not_found], and its exclusive creation
+       fails with [EEXIST]. *)
+    let create_new () =
+      RW (Eio.Path.open_out ~sw ~create:(`Exclusive default_create_perm) path)
+    in
+    match Eio.Path.kind ~follow:true path with
+    | `Not_found -> Ok { file = create_new (); closed = false; path }
+    | `Regular_file -> (
+        match overwrite with
+        | true ->
+            let file =
+              match Eio.Path.kind ~follow:false path with
+              | `Symbolic_link ->
+                  (* Replace the link, rather than truncate its target, which
+                     may belong to another store. *)
+                  Eio.Path.unlink path;
+                  create_new ()
+              | _ ->
+                  (* The file exists, truncate it and use it. An exception
+                     will be triggered if we don't have the permissions *)
+                  RW
+                    (Eio.Path.open_out ~sw
+                       ~create:(`Or_truncate default_create_perm) path)
+            in
+            Ok { file; closed = false; path }
+        | false -> Error (`File_exists (Eio.Path.native_exn path)))
+    (* A directory, or another kind of file, is not overwritten. *)
+    | _ -> Error (`File_exists (Eio.Path.native_exn path))
 
+  (* In read-write mode, writes go to the target of a symbolic link, as in
+     Irmin 3. Files replaced by a rename (control file, index merges) replace
+     the link instead, so a store whose files are links to another store drifts
+     apart from it. *)
   let open_ ~sw ~path ~readonly =
-    match Eio.Path.kind ~follow:false path with
+    catch_eio @@ fun () ->
+    match Eio.Path.kind ~follow:true path with
     | `Not_found ->
         Error (`No_such_file_or_directory (Eio.Path.native_exn path))
-    | `Regular_file -> (
-        match readonly with
-        | true -> (
-            try
-              let file = RO (Eio.Path.open_in ~sw path) in
-              Ok { file; closed = false; path }
-            with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
-        | false -> (
-            try
-              let file = RW (Eio.Path.open_out ~sw ~create:`Never path) in
-              Ok { file; closed = false; path }
-            with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))))
+    | `Regular_file ->
+        let file =
+          match readonly with
+          | true -> RO (Eio.Path.open_in ~sw path)
+          | false -> RW (Eio.Path.open_out ~sw ~create:`Never path)
+        in
+        Ok { file; closed = false; path }
     | _ -> Error `Not_a_file
 
   let close t =
@@ -270,8 +314,8 @@ module Unix = struct
       Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
 
   let copy_file ~src ~dst =
-    let stats = Eio.Path.stat ~follow:false src in
     try
+      let stats = Eio.Path.stat ~follow:true src in
       Eio.Path.with_open_in src (fun in_flow ->
           Eio.Path.with_open_out ~create:(`Or_truncate stats.perm) dst
             (fun out_flow -> Eio.Flow.copy in_flow out_flow));
@@ -280,15 +324,14 @@ module Unix = struct
       Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
 
   let mkdir path =
+    catch_eio @@ fun () ->
     let dirname, _ = Option.get @@ Eio.Path.split path in
     match
-      (Eio.Path.kind ~follow:false dirname, Eio.Path.kind ~follow:false path)
+      (Eio.Path.kind ~follow:true dirname, Eio.Path.kind ~follow:false path)
     with
-    | `Directory, `Not_found -> (
-        try
-          Eio.Path.mkdir ~perm:default_mkdir_perm path;
-          Ok ()
-        with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
+    | `Directory, `Not_found ->
+        Eio.Path.mkdir ~perm:default_mkdir_perm path;
+        Ok ()
     | `Directory, _ -> Error (`File_exists (Eio.Path.native_exn path))
     | `Not_found, `Not_found ->
         Error (`No_such_file_or_directory (Eio.Path.native_exn path))
@@ -299,6 +342,22 @@ module Unix = struct
   let unlink path =
     try
       Eio.Path.unlink path;
+      Ok ()
+    with Eio.Io (err, _context) ->
+      Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))
+
+  let unlink_symlinks dir =
+    try
+      (match Eio.Path.kind ~follow:false dir with
+      | `Symbolic_link -> Eio.Path.unlink dir
+      | `Directory ->
+          Eio.Path.read_dir dir
+          |> List.iter (fun name ->
+              let path = Eio.Path.(dir / name) in
+              match Eio.Path.kind ~follow:false path with
+              | `Symbolic_link -> Eio.Path.unlink path
+              | _ -> ())
+      | _ -> ());
       Ok ()
     with Eio.Io (err, _context) ->
       Error (`Sys_error (Fmt.str "%a" Eio.Exn.pp_err err))

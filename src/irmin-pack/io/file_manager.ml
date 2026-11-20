@@ -495,7 +495,10 @@ struct
     let make_dict = Dict.create_rw ~sw ~overwrite in
     let make_suffix () = Suffix.create_rw ~sw ~root ~overwrite ~start_idx:0 in
     let make_index ~flush_callback ~readonly ~throttle ~log_size root =
-      (* [overwrite] is ignored for index *)
+      (* [overwrite] is ignored for index. Index opens its files through
+         symbolic links: remove them, so that the fresh index does not truncate
+         their targets. *)
+      let* () = Io.unlink_symlinks Eio.Path.(root / "index") in
       Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size
         (Eio.Path.native_exn root)
     in

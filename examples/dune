@@ -69,6 +69,11 @@
  (files merkle_proofs.md)
  (deps %{bin:irmin})
  (package irmin-cli)
+ ; The toplevel cannot load workspace libraries with #require, and loading
+ ; Eio a second time breaks its effects, so every library is linked here.
+ ; It must cover the skipped #require block of the document, except for the
+ ; digestif and checkseum implementations: irmin-cli already selects
+ ; digestif.ocaml and checkseum.c.
  (libraries
   irmin
   irmin-cli
@@ -77,6 +82,11 @@
   eio
   eio_main
   eio.unix
-  lwt_eio)
+  lwt_eio
+  repr
+  fmt
+  mirage-mtime.unix
+  mirage-ptime.unix
+  mirage-sleep.unix)
  (enabled_if
   (<> %{model} "ppc64le")))
