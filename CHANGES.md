@@ -1,3 +1,16 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-pack**
+  - Opening a store with a corrupted branch store fails with
+    `Decoding_error`. A key length which is negative was raising
+    `Invalid_argument`, and a large one allocated a buffer of that size
+    before the read failed (@balat)
+  - A read-only store ignores a truncated entry at the end of the branch
+    store, which may be in the middle of its write, and reads it once it is
+    complete (@balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added
