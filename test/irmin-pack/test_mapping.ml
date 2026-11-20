@@ -107,10 +107,79 @@ let test ~fs ~full_seg_length ~random_test_count =
   in
   aux 0
 
+(** Write a mapping file with [entries] [(off, poff, len)], and a data file. *)
+let write_mapping ~sw ~fs entries =
+  let mapping =
+    Irmin_pack.Layout.V5.mapping ~root:(test_dir ~fs) ~generation:1
+  in
+  let data = Irmin_pack.Layout.V5.prefix ~root:(test_dir ~fs) ~generation:1 in
+  let write path contents =
+    Io.unlink path |> ignore;
+    let io = Io.create ~sw ~path ~overwrite:true |> Errs.raise_if_error in
+    Io.write_string io ~off:Int63.zero contents |> Errs.raise_if_error;
+    Io.close io |> Errs.raise_if_error
+  in
+  let buf = Buffer.create 64 in
+  List.iter
+    (fun (off, poff, len) ->
+      List.iter
+        (fun x -> Buffer.add_int64_le buf (Int64.of_int x))
+        [ off; poff; len ])
+    entries;
+  write mapping (Buffer.contents buf);
+  write data (String.make 100 'x');
+  (mapping, data, Buffer.length buf)
+
+let check_corrupted msg = function
+  | Error (`Corrupted_mapping_file _) -> ()
+  | Error e -> Errs.raise_error e
+  | Ok _ -> Alcotest.failf "%s: the corruption is not detected" msg
+
+(** The size of the mapping comes from the control file: it is checked before
+    anything is allocated. *)
+let test_mapping_size ~fs () =
+  Eio.Switch.run @@ fun sw ->
+  Io.mkdir (test_dir ~fs) |> ignore;
+  let mapping, data, size = write_mapping ~sw ~fs [ (0, 0, 10) ] in
+  let open_ro mapping_size =
+    Sparse_file.open_ro ~sw ~mapping_size ~mapping ~data
+  in
+  check_corrupted "larger" (open_ro (size + (24 * 1000)));
+  check_corrupted "next multiple of 24" (open_ro (size + 1));
+  check_corrupted "negative" (open_ro (-24));
+  let sparse = open_ro size |> Errs.raise_if_error in
+  Sparse_file.close sparse |> Errs.raise_if_error
+
+(** The entries found in the mapping are checked. *)
+let test_mapping_entries ~fs () =
+  Eio.Switch.run @@ fun sw ->
+  Io.mkdir (test_dir ~fs) |> ignore;
+  let check ?(off = 12) msg entries =
+    let mapping, data, mapping_size = write_mapping ~sw ~fs entries in
+    let sparse =
+      Sparse_file.open_ro ~sw ~mapping_size ~mapping ~data
+      |> Errs.raise_if_error
+    in
+    let buf = Bytes.create 1 in
+    let r =
+      Errs.catch (fun () ->
+          Sparse_file.read_exn sparse ~off:(Int63.of_int off) ~len:1 buf)
+    in
+    Sparse_file.close sparse |> Errs.raise_if_error;
+    check_corrupted msg r
+  in
+  check "overlapping entries" [ (0, 0, 10); (5, 10, 10) ];
+  check ~off:11 "empty entry" [ (0, 0, 10); (12, 10, 0); (20, 10, 10) ];
+  check "negative poff" [ (10, -10, 10) ];
+  (* [5 + max_int - 1] overflows *)
+  check "huge previous length" [ (5, 0, max_int); (10, 10, 10) ]
+
 let tests ~fs =
   [
     Alcotest.test_case "test mapping on small inputs" `Quick (fun () ->
         test ~fs ~full_seg_length:10 ~random_test_count:1000);
     Alcotest.test_case "test mapping on large inputs" `Quick (fun () ->
         test ~fs ~full_seg_length:10000 ~random_test_count:100);
+    Alcotest.test_case "test mapping size" `Quick (test_mapping_size ~fs);
+    Alcotest.test_case "test mapping entries" `Quick (test_mapping_entries ~fs);
   ]
