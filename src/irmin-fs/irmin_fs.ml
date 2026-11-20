@@ -228,7 +228,14 @@ struct
           [%log.err "listen_dir: %s" e];
           None
     in
-    W.listen_dir t.w dir ~key ~value:(RO.find t.t)
+    (* An unreadable file must not stop the notifications of the others. *)
+    let value k =
+      try RO.find t.t k
+      with Eio.Io _ as exn ->
+        [%log.err "listen_dir: cannot read %a: %a" RO.pp_key k Fmt.exn exn];
+        None
+    in
+    W.listen_dir t.w dir ~key ~value
 
   let watch_key t key ?init f =
     let stop = listen_dir t in

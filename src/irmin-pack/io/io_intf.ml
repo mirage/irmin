@@ -69,6 +69,12 @@ module type S = sig
     path:Eio.Fs.dir_ty Eio.Path.t ->
     overwrite:bool ->
     (t, [> create_error ]) result
+  (** [create ~sw ~path ~overwrite] creates the file [path] and opens it in
+      read-write mode. If [path] exists, it fails with [`File_exists], unless
+      [path] is a regular file and [overwrite] is set: the file is then
+      truncated. A symbolic link to a regular file is replaced by a new file:
+      its target is not modified. A dangling symbolic link, or a loop of them,
+      gives [`Io_misc]. *)
 
   val open_ :
     sw:Eio.Switch.t ->
@@ -102,6 +108,12 @@ module type S = sig
 
   val unlink :
     Eio.Fs.dir_ty Eio.Path.t -> (unit, [> `Sys_error of string ]) result
+
+  val unlink_symlinks :
+    Eio.Fs.dir_ty Eio.Path.t -> (unit, [> `Sys_error of string ]) result
+  (** [unlink_symlinks dir] removes [dir] if it is a symbolic link, and the
+      symbolic links it contains if it is a directory, but never their targets.
+      It does nothing if there is nothing at [dir], or another kind of file. *)
 
   val unlink_dont_wait :
     on_exn:(exn -> unit) -> sw:Eio.Switch.t -> Eio.Fs.dir_ty Eio.Path.t -> unit
@@ -139,6 +151,8 @@ module type S = sig
   val classify_path :
     Eio.Fs.dir_ty Eio.Path.t ->
     [> `File | `Directory | `No_such_file_or_directory | `Other ]
+  (** [classify_path path] is the kind of file at [path], following symbolic
+      links. A dangling symbolic link is [`Other]. *)
 
   val readdir : Eio.Fs.dir_ty Eio.Path.t -> string list
 
