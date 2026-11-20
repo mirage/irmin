@@ -6,10 +6,13 @@ module Volume_control = Irmin_pack_unix.Control_file.Volume (Io)
 type store_type = Upper | Volume
 
 let print_cf read print control_file =
-  let r = read ~path:control_file in
-  match r with
-  | Error err -> Io_errors.raise_error err
-  | Ok payload -> Fmt.pr "%a\n" (Irmin.Type.pp_json print) payload
+  match read ~path:control_file with
+  | Error err ->
+      Fmt.epr "irmin-ppcf: %a@." (Irmin.Type.pp Io_errors.t) err;
+      1
+  | Ok payload ->
+      Fmt.pr "%a\n" (Irmin.Type.pp_json print) payload;
+      0
 
 let main = function
   | Upper ->
@@ -41,4 +44,4 @@ let main_cmd =
   let info = Cmd.info "irmin-ppcf" ~doc in
   Cmd.v info Term.(const main $ store_type $ control_file)
 
-let () = exit (Cmd.eval ~catch:false main_cmd)
+let () = exit (Cmd.eval' ~catch:false main_cmd)

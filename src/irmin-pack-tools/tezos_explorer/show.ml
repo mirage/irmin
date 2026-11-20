@@ -46,6 +46,23 @@ let get_entry c off =
   let hash = Result.get_ok @@ Base64.encode hash in
   { hash; kind; off; length; contents }
 
+(* The bytes of the current entry after its header. *)
+let entry_payload c header =
+  let contents = c.entry_content.contents in
+  let len = String.length contents - header in
+  if len < 0 then
+    corrupted "the entry at offset %d is too short"
+      (Int63.to_int c.entry_content.off);
+  String.sub contents header len
+
+(* The binary decoders of repr raise [Invalid_argument] or [Failure] on bytes
+   which are not valid. *)
+let decode_contents c decode contents =
+  try decode contents (ref 0)
+  with Invalid_argument _ | Failure _ ->
+    corrupted "the entry at offset %d cannot be decoded"
+      (Int63.to_int c.entry_content.off)
+
 let read ~fd ~buffer ~fd_offset ~buffer_offset ~length =
   let rec aux fd_offset buffer_offset length read_count =
     let r =
@@ -61,60 +78,83 @@ let read ~fd ~buffer ~fd_offset ~buffer_offset ~length =
   in
   aux fd_offset buffer_offset length 0
 
-let load_idxs fd =
-  let idx = ref 0 in
-  let _ =
-    read ~fd ~buffer ~fd_offset:Int63.zero ~buffer_offset:0
-      ~length:Varint.max_encoded_size
+(* [decode_varints ~file fd ~off n] decodes [n] varints at [off] in [fd], and
+   the number of bytes they take. *)
+let decode_varints ~file fd ~off n =
+  let read_count =
+    read ~fd ~buffer ~fd_offset:off ~buffer_offset:0
+      ~length:(n * Varint.max_encoded_size)
   in
   let buf = Bytes.unsafe_to_string buffer in
-  let max_entry = Varint.decode_bin buf idx in
+  let pos = ref 0 in
+  let values = Array.init n (fun _ -> Varint.decode_bin buf pos) in
+  if !pos > read_count then
+    corrupted "%s is truncated at offset %d" file (Int63.to_int off);
+  (values, !pos)
+
+let check_offset ~file ~off v =
+  if v < 0 then
+    corrupted "%s: negative offset at offset %d" file (Int63.to_int off)
+
+let load_idxs ~file fd =
+  let size = (Unix.fstat fd).st_size in
+  let max_entry, header = decode_varints ~file fd ~off:Int63.zero 1 in
+  let max_entry = max_entry.(0) in
+  (* An entry takes at least 3 bytes *)
+  if max_entry < 1 || max_entry > (size - header) / 3 then
+    corrupted "%s announces %d entries" file max_entry;
+  let idx = ref header in
   let idxs =
     List.init max_entry (fun i ->
-        let _ =
-          read ~fd ~buffer ~fd_offset:(Int63.of_int !idx) ~buffer_offset:0
-            ~length:(Varint.max_encoded_size * 3)
+        let off = Int63.of_int !idx in
+        let offsets, len = decode_varints ~file fd ~off 3 in
+        Array.iter (check_offset ~file ~off) offsets;
+        idx := !idx + len;
+        let off_info =
+          {
+            off_last = Int63.of_int offsets.(0);
+            off_next = Int63.of_int offsets.(1);
+          }
         in
-        let buffer = Bytes.unsafe_to_string buffer in
-        let i' = ref 0 in
-        let off_last_info = Int63.of_int @@ Varint.decode_bin buffer i' in
-        let off_next_info = Int63.of_int @@ Varint.decode_bin buffer i' in
-        let off_pack = Int63.of_int @@ Varint.decode_bin buffer i' in
-        idx := !i' + !idx;
-        let off_info = { off_last = off_last_info; off_next = off_next_info } in
-        { entry = i; off_info; off_pack })
+        { entry = i; off_info; off_pack = Int63.of_int offsets.(2) })
   in
   (max_entry, idxs)
 
-let load_entry fd_last fd_next off_info =
-  let _ =
-    read ~fd:fd_last ~buffer ~fd_offset:off_info.off_last ~buffer_offset:0
+(* The entries before or after an entry, in an info file. They are entries of
+   the index: between [0] and [max_entry]. *)
+let load_info ~file ~max_entry fd off =
+  let read_count =
+    read ~fd ~buffer ~fd_offset:off ~buffer_offset:0
       ~length:(Varint.max_encoded_size * 7)
   in
   let buf = Bytes.unsafe_to_string buffer in
   let idx = ref 0 in
   let flag = Varint.decode_bin buf idx in
-  let n = Int.logand flag 0b11 in
-  let commit = List.init n (fun _ -> Varint.decode_bin buf idx) in
-  let n = Int.shift_right_logical (Int.logand flag 0b1100) 2 in
-  let contents = List.init n (fun _ -> Varint.decode_bin buf idx) in
-  let n = Int.shift_right_logical (Int.logand flag 0b110000) 4 in
-  let inode = List.init n (fun _ -> Varint.decode_bin buf idx) in
-  let last = { commit; contents; inode } in
-  let _ =
-    read ~fd:fd_next ~buffer ~fd_offset:off_info.off_next ~buffer_offset:0
-      ~length:(Varint.max_encoded_size * 7)
+  let entries mask shift =
+    let n = Int.shift_right_logical (Int.logand flag mask) shift in
+    List.init n (fun _ -> Varint.decode_bin buf idx)
   in
-  let buf = Bytes.unsafe_to_string buffer in
-  let idx = ref 0 in
-  let flag = Varint.decode_bin buf idx in
-  let n = Int.logand flag 0b11 in
-  let commit = List.init n (fun _ -> Varint.decode_bin buf idx) in
-  let n = Int.shift_right_logical (Int.logand flag 0b1100) 2 in
-  let contents = List.init n (fun _ -> Varint.decode_bin buf idx) in
-  let n = Int.shift_right_logical (Int.logand flag 0b110000) 4 in
-  let inode = List.init n (fun _ -> Varint.decode_bin buf idx) in
-  let next = { commit; contents; inode } in
+  let commit = entries 0b11 0 in
+  let contents = entries 0b1100 2 in
+  let inode = entries 0b110000 4 in
+  if !idx > read_count then
+    corrupted "%s is truncated at offset %d" file (Int63.to_int off);
+  List.iter
+    (fun e ->
+      if e < 0 || e >= max_entry then
+        corrupted "%s: no entry %d, at offset %d" file e (Int63.to_int off))
+    (commit @ contents @ inode);
+  { commit; contents; inode }
+
+let load_entry ~max_entry fd_last fd_next off_info =
+  let last =
+    load_info ~file:"the info file of the last entries" ~max_entry fd_last
+      off_info.off_last
+  in
+  let next =
+    load_info ~file:"the info file of the next entries" ~max_entry fd_next
+      off_info.off_next
+  in
   { last; next }
 
 let reload_context c i =
@@ -127,13 +167,16 @@ let reload_context c i =
         kind = c.entry_content.kind;
       };
   c.entry <- i;
-  c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd idxs.off_info;
+  c.entry_ctx <-
+    load_entry ~max_entry:c.max_entry c.info_last_fd c.info_next_fd
+      idxs.off_info;
   c.entry_content <- get_entry c idxs.off_pack
 
 let reload_context_with_off c off =
   let idxs =
-    Option.get
-    @@ List.find_opt (fun idxs -> Int63.equal off idxs.off_pack) c.idxs
+    match List.find_opt (fun idxs -> Int63.equal off idxs.off_pack) c.idxs with
+    | Some idxs -> idxs
+    | None -> corrupted "no entry at offset %d" (Int63.to_int off)
   in
   if idxs.entry <> c.entry then
     Ring.add c.history
@@ -143,7 +186,9 @@ let reload_context_with_off c off =
         kind = c.entry_content.kind;
       };
   c.entry <- idxs.entry;
-  c.entry_ctx <- load_entry c.info_last_fd c.info_next_fd idxs.off_info;
+  c.entry_ctx <-
+    load_entry ~max_entry:c.max_entry c.info_last_fd c.info_next_fd
+      idxs.off_info;
   c.entry_content <- get_entry c off
 
 module Menu = struct
@@ -340,36 +385,43 @@ let position_text c i =
 
 let get_parent_commit c i =
   let { off_info; _ } = List.nth c.idxs i in
-  let ctx = load_entry c.info_last_fd c.info_next_fd off_info in
-  List.nth ctx.next.commit 0
+  let ctx =
+    load_entry ~max_entry:c.max_entry c.info_last_fd c.info_next_fd off_info
+  in
+  List.nth_opt ctx.next.commit 0
 
 let show_commit c (commit : Files.Commit.Commit_direct.t) =
   let open I in
   let node_txt = string A.(fg lightred ++ st bold) "Node:" in
   let addr_show ?(parent = true) (addr : Files.Commit.Commit_direct.address) =
     let parent_commit ~parent c i =
-      if parent then
-        let parent_commit = get_parent_commit c i in
-        let img =
-          if c.entry == parent_commit then
-            strf ~attr:A.(fg lightgreen ++ st bold) "(Added by current commit)"
-          else
-            strf
-              ~attr:A.(fg lightmagenta ++ st bold)
-              "(Added by commit at entry %#d)" parent_commit
-        in
-        ( img,
-          [
-            Button.
-              {
-                x = 0;
-                y = 1;
-                w = I.width img;
-                h = 1;
-                f = (fun c -> reload_context c parent_commit);
-              };
-          ] )
-      else (empty, [])
+      if not parent then (empty, [])
+      else
+        match get_parent_commit c i with
+        | None ->
+            (strf ~attr:A.(fg lightmagenta ++ st bold) "(No parent commit)", [])
+        | Some parent_commit ->
+            let img =
+              if c.entry = parent_commit then
+                strf
+                  ~attr:A.(fg lightgreen ++ st bold)
+                  "(Added by current commit)"
+              else
+                strf
+                  ~attr:A.(fg lightmagenta ++ st bold)
+                  "(Added by commit at entry %#d)" parent_commit
+            in
+            ( img,
+              [
+                Button.
+                  {
+                    x = 0;
+                    y = 1;
+                    w = I.width img;
+                    h = 1;
+                    f = (fun c -> reload_context c parent_commit);
+                  };
+              ] )
     in
     match addr with
     | Offset addr -> (
@@ -438,9 +490,10 @@ let show_commit c (commit : Files.Commit.Commit_direct.t) =
   let info_txt = I.string A.(fg lightred ++ st bold) "Info:" in
   let info = commit.info in
   let date =
-    Option.get
-    @@ Ptime.of_span
-    @@ Ptime.Span.of_int_s (Int64.to_int @@ Files.Store.Info.date info)
+    let seconds = Files.Store.Info.date info in
+    match Ptime.of_span (Ptime.Span.of_int_s (Int64.to_int seconds)) with
+    | Some date -> Fmt.str "%a" (Ptime.pp_human ()) date
+    | None -> Fmt.str "%Ld seconds (not a valid date)" seconds
   in
   let info =
     let open I in
@@ -450,9 +503,7 @@ let show_commit c (commit : Files.Commit.Commit_direct.t) =
     <|> void 1 0
     <|> (string A.(fg lightwhite ++ st bold) (Files.Store.Info.author info)
         <-> string A.(fg lightwhite ++ st bold) (Files.Store.Info.message info)
-        <-> strf
-              ~attr:A.(fg lightwhite ++ st bold)
-              "%a" (Ptime.pp_human ()) date)
+        <-> strf ~attr:A.(fg lightwhite ++ st bold) "%s" date)
   in
   let open I in
   let img = node_txt <-> (void 2 0 <|> node) <-> void 0 1 <-> parents_txt in
@@ -471,27 +522,30 @@ let show_inode c (inode : Files.Inode.compress) =
   let open I in
   let addr_show (addr : Files.Inode.Compress.address) =
     let parent_commit c i =
-      let current_parent_commit = List.nth c.entry_ctx.next.commit 0 in
-      let parent_commit = get_parent_commit c i in
-      let img =
-        if current_parent_commit == parent_commit then
-          strf ~attr:A.(fg lightgreen ++ st bold) "(Added by parent commit)"
-        else
-          strf
-            ~attr:A.(fg lightmagenta ++ st bold)
-            "(Added by commit at entry %#d)" parent_commit
-      in
-      ( img,
-        [
-          Button.
-            {
-              x = 0;
-              y = 1;
-              w = I.width img;
-              h = 1;
-              f = (fun c -> reload_context c parent_commit);
-            };
-        ] )
+      let current_parent_commit = List.nth_opt c.entry_ctx.next.commit 0 in
+      match get_parent_commit c i with
+      | None ->
+          (strf ~attr:A.(fg lightmagenta ++ st bold) "(No parent commit)", [])
+      | Some parent_commit ->
+          let img =
+            if current_parent_commit = Some parent_commit then
+              strf ~attr:A.(fg lightgreen ++ st bold) "(Added by parent commit)"
+            else
+              strf
+                ~attr:A.(fg lightmagenta ++ st bold)
+                "(Added by commit at entry %#d)" parent_commit
+          in
+          ( img,
+            [
+              Button.
+                {
+                  x = 0;
+                  y = 1;
+                  w = I.width img;
+                  h = 1;
+                  f = (fun c -> reload_context c parent_commit);
+                };
+            ] )
     in
     match addr with
     | Offset addr ->
@@ -646,16 +700,12 @@ let show_entry_content ~x_off ~y_off c =
       let decoded = I.string A.(fg lightred ++ st bold) "Decoded:" in
       let inode, inode_buttons =
         show_inode c
-        @@ Files.Inode.decode_bin_compress c.entry_content.contents (ref 0)
+        @@ decode_contents c Files.Inode.decode_bin_compress
+             c.entry_content.contents
       in
       let hex = I.string A.(fg lightred ++ st bold) "Hexdump:" in
       let entry_header = Files.Hash.hash_size + 1 in
-      let contents_len =
-        String.length c.entry_content.contents - entry_header
-      in
-      let contents =
-        String.sub c.entry_content.contents entry_header contents_len
-      in
+      let contents = entry_payload c entry_header in
       let contents = Hex.hexdump_s @@ Hex.of_string contents in
       let contents = String.split_on_char '\n' contents in
       let entry_hexdump =
@@ -679,14 +729,10 @@ let show_entry_content ~x_off ~y_off c =
   | Commit_v2 | Dangling_parent_commit ->
       let open I in
       let entry_header = Files.Hash.hash_size + 2 in
-      let contents_len =
-        String.length c.entry_content.contents - entry_header
-      in
-      let contents =
-        String.sub c.entry_content.contents entry_header contents_len
-      in
+      let contents = entry_payload c entry_header in
       let commit, commit_button =
-        show_commit c @@ Files.Commit.decode_bin_compress contents (ref 0)
+        show_commit c
+        @@ decode_contents c Files.Commit.decode_bin_compress contents
       in
       let decoded = I.string A.(fg lightred ++ st bold) "Decoded:" in
       let hex = I.string A.(fg lightred ++ st bold) "Hexdump:" in
@@ -712,12 +758,7 @@ let show_entry_content ~x_off ~y_off c =
           commit_button )
   | _ ->
       let entry_header = Files.Hash.hash_size + 1 in
-      let contents_len =
-        String.length c.entry_content.contents - entry_header
-      in
-      let contents =
-        String.sub c.entry_content.contents entry_header contents_len
-      in
+      let contents = entry_payload c entry_header in
       let decoded = I.string A.(fg lightred ++ st bold) "Decoded:" in
       let entry_decoded = I.string A.(fg lightwhite ++ st bold) "n/a" in
       let hex = I.string A.(fg lightred ++ st bold) "Hexdump:" in
@@ -867,11 +908,14 @@ let main store_path info_last_path info_next_path index_path =
     Unix.openfile info_next_path Unix.[ O_RDONLY; O_CLOEXEC ] 0o644
   in
   let idx_fd = Unix.openfile index_path Unix.[ O_RDONLY; O_CLOEXEC ] 0o644 in
-  let max_entry, idxs = load_idxs idx_fd in
-  Unix.close idx_fd;
+  let max_entry, idxs =
+    Fun.protect
+      ~finally:(fun () -> Unix.close idx_fd)
+      (fun () -> load_idxs ~file:index_path idx_fd)
+  in
   let history = Ring.make 50 in
   let { entry; off_info; off_pack } = List.hd idxs in
-  let entry_ctx = load_entry info_last_fd info_next_fd off_info in
+  let entry_ctx = load_entry ~max_entry info_last_fd info_next_fd off_info in
   let entry_content =
     Obj.magic "TODO: cyclical deps between entry_content and context"
   in
@@ -894,6 +938,10 @@ let main store_path info_last_path info_next_path index_path =
     }
   in
   context.entry_content <- get_entry context off_pack;
-  loop (Term.create ()) context;
+  let term = Term.create () in
+  (* The terminal is restored before an error is printed *)
+  Fun.protect
+    ~finally:(fun () -> Term.release term)
+    (fun () -> loop term context);
   Unix.close info_last_fd;
   Unix.close info_next_fd

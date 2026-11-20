@@ -33,6 +33,11 @@ let index_path =
     & info [ "store_idx" ]
         ~doc:"the path to the index file generated, default to `store.index`")
 
+(* The errors about the store files are printed, with the exit code 1. *)
+let run name main store_path info_last_path info_next_path index_path =
+  Parse.Files.run ("irmin-tezos-explorer " ^ name) (fun () ->
+      main store_path info_last_path info_next_path index_path)
+
 (* Command parse *)
 let parse_cmd =
   let doc =
@@ -41,7 +46,7 @@ let parse_cmd =
   let info = Cmd.info "parse" ~doc in
   Cmd.v info
     Term.(
-      const Parse.main
+      const (run "parse" Parse.main)
       $ store_path
       $ info_last_path
       $ info_next_path
@@ -53,7 +58,7 @@ let show_cmd =
   let info = Cmd.info "show" ~doc in
   Cmd.v info
     Term.(
-      const Show.main
+      const (run "show" Show.main)
       $ store_path
       $ info_last_path
       $ info_next_path
@@ -66,4 +71,4 @@ let main_cmd =
   let default = Term.(ret (const (`Help (`Pager, None)))) in
   Cmd.group info ~default [ parse_cmd; show_cmd ]
 
-let () = exit (Cmd.eval ~catch:false main_cmd)
+let () = exit (Cmd.eval' ~catch:false main_cmd)
