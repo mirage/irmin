@@ -82,8 +82,76 @@ let test_corrupted_control_file ~fs () =
         "path is corrupted" s "./_build/test-corrupted/store.control"
   | _ -> Alcotest.fail "unexpected error"
 
+let direct_key key =
+  match Irmin_pack_unix.Pack_key.inspect key with
+  | Direct { offset; hash; length; _ } -> (offset, hash, length)
+  | Indexed _ -> Alcotest.fail "not a direct key"
+
+(* A store with one commit: the keys of the commit and of its root node. *)
+let store_with_commit ~fs root =
+  Eio.Switch.run @@ fun sw ->
+  rm_dir root;
+  let repo = Store.Repo.v (config ~sw ~fs ~fresh:true root) in
+  let store = Store.main repo in
+  Store.set_exn ~info store [ "a" ] "b";
+  let commit = Store.Head.get store in
+  let commit_key = Store.Commit.key commit in
+  let node_key =
+    match Store.Tree.key (Store.Commit.tree commit) with
+    | Some (`Node key) -> key
+    | Some (`Contents _) | None -> Alcotest.fail "no node key"
+  in
+  Store.Repo.close repo;
+  (commit_key, node_key)
+
+(* Read the commit of [key] in the store. *)
+let read_commit ~fs root key =
+  Eio.Switch.run @@ fun sw ->
+  let repo = Store.Repo.v (config ~sw ~fs ~fresh:false root) in
+  Fun.protect
+    (fun () -> Store.Commit.of_key repo key)
+    ~finally:(fun () -> Store.Repo.close repo)
+
+let check_raises msg expected f =
+  match f () with
+  | _ -> Alcotest.failf "%s: no exception" msg
+  | exception exn ->
+      if not (expected exn) then
+        Alcotest.failf "%s: unexpected exception %s" msg
+          (Printexc.to_string exn)
+
+let corrupted = function
+  | Irmin_pack_unix.Pack_store.Corrupted_store _ -> true
+  | _ -> false
+
+(* The bytes of an entry are not trusted: a wrong kind or a wrong length is
+   reported as a corruption, and no memory is allocated from the length. *)
+let test_corrupted_entry ~fs () =
+  let root = root fs in
+  let commit_key, node_key = store_with_commit ~fs root in
+  let offset, hash, length = direct_key commit_key in
+  let node_offset, _, node_length = direct_key node_key in
+  let key ~offset ~length =
+    Irmin_pack_unix.Pack_key.v_direct ~offset ~length hash
+  in
+  check_raises "negative length" corrupted (fun () ->
+      read_commit ~fs root (key ~offset ~length:(-1)));
+  check_raises "length after the end"
+    (function Irmin_pack_unix.Pack_store.Invalid_read _ -> true | _ -> false)
+    (fun () -> read_commit ~fs root (key ~offset ~length:max_int));
+  check_raises "entry of another kind" corrupted (fun () ->
+      read_commit ~fs root (key ~offset:node_offset ~length:node_length));
+  (* The kind of the commit is not a kind any more *)
+  let suffix = Eio.Path.(root / "store.0.suffix") in
+  let contents = Bytes.of_string (read_file suffix) in
+  Bytes.set contents (Int63.to_int offset + Store.Hash.hash_size) 'X';
+  write_file suffix (Bytes.to_string contents);
+  check_raises "unknown kind" corrupted (fun () ->
+      read_commit ~fs root (key ~offset ~length))
+
 let tests ~fs =
   [
     Alcotest.test_case "Corrupted control file" `Quick
       (test_corrupted_control_file ~fs);
+    Alcotest.test_case "Corrupted entry" `Quick (test_corrupted_entry ~fs);
   ]

@@ -87,7 +87,14 @@ module type Sigs = sig
     val all : t list
     val to_enum : t -> int
     val to_magic : t -> char
+
+    val of_magic : char -> t option
+    (** [of_magic c] is the kind whose magic char is [c], if any. *)
+
     val of_magic_exn : char -> t
+    (** Same as {!of_magic}, but raises [Failure] when [c] is not a magic char.
+    *)
+
     val pp : t Fmt.t
 
     val length_header_exn : t -> length_header
