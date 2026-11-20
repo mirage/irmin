@@ -23,7 +23,11 @@ type int64_bigarray = (int64, Bigarray.int64_elt, Bigarray.c_layout) BigArr1.t
 module Int64_mmap (Io : Io.S) : sig
   type t
 
-  val open_ro : fn:string -> sz:int -> (t, [> Io.open_error ]) result
+  val open_ro :
+    fn:string ->
+    sz:int ->
+    (t, [> Io.open_error | `Corrupted_mapping_file of string ]) result
+
   val length : t -> int
   val get : t -> int -> Int64.t
   val close : t -> (unit, [> Io.close_error ]) result
@@ -41,11 +45,36 @@ end = struct
   let open_ro ~fn ~sz =
     let open Result_syntax in
     assert (Sys.file_exists fn);
-    let+ fd = Io.open_ ~path:fn ~readonly:true in
-    let size = sz / 8 in
-    let arr = BigArr1.create Bigarray.Int64 Bigarray.c_layout size in
-    let loaded = Array.make (1 + (sz / sector_size)) false in
-    { fn; fd; arr; loaded }
+    let* fd = Io.open_ ~path:fn ~readonly:true in
+    (* The size comes from the control file: it is checked before anything
+       is allocated *)
+    let check_size =
+      let corrupted fmt =
+        Fmt.kstr
+          (fun msg -> Error (`Corrupted_mapping_file (__FILE__ ^ ": " ^ msg)))
+          fmt
+      in
+      match Io.read_size fd with
+      | Error (`Io_misc _ as e) -> Error e
+      | Error (`Closed | `Invalid_argument | `Read_out_of_bounds) ->
+          corrupted "cannot read the size of %s" fn
+      | Ok file_size ->
+          if sz >= 0 && Int63.Syntax.(Int63.of_int sz <= file_size) then Ok ()
+          else
+            corrupted "mapping size %d instead of at most %a" sz Int63.pp
+              file_size
+    in
+    match check_size with
+    | Error _ as e ->
+        Result.iter_error
+          (fun _ -> [%log.err "Cannot close the mapping file %s" fn])
+          (Io.close fd);
+        e
+    | Ok () ->
+        let size = sz / 8 in
+        let arr = BigArr1.create Bigarray.Int64 Bigarray.c_layout size in
+        let loaded = Array.make (1 + (sz / sector_size)) false in
+        Ok { fn; fd; arr; loaded }
 
   let close t = Io.close t.fd
 
@@ -81,6 +110,9 @@ module Make (Io : Io.S) = struct
 
     type t = Int64_mmap.t
 
+    let corrupted fmt =
+      Fmt.kstr (fun msg -> `Corrupted_mapping_file (__FILE__ ^ ": " ^ msg)) fmt
+
     let open_map ~path ~size =
       match Io.classify_path path with
       | `File ->
@@ -88,9 +120,7 @@ module Make (Io : Io.S) = struct
           let* mmap = Int64_mmap.open_ro ~fn:path ~sz:size in
           if Int64_mmap.length mmap mod 3 = 0 then Ok mmap
           else
-            Error
-              (`Corrupted_mapping_file
-                (__FILE__ ^ ": mapping mmap size did not meet size requirements"))
+            Error (corrupted "mapping mmap size did not meet size requirements")
       | _ -> Error (`No_such_file_or_directory path)
 
     let close = Int64_mmap.close
@@ -129,6 +159,24 @@ module Make (Io : Io.S) = struct
               len = entry_len arr i;
             }
           in
+          (* The mapping file is read lazily: only the entry which is found
+             is checked, against the previous one. When the search ends
+             between two entries, the previous one has been read already. *)
+          let after_previous =
+            i = 0
+            ||
+            let prev_off = entry_off arr (i - 1) in
+            let prev_len = Int63.of_int (entry_len arr (i - 1)) in
+            let open Int63.Syntax in
+            prev_off < entry.off && prev_len <= entry.off - prev_off
+          in
+          if
+            entry.len <= 0
+            || Int63.Syntax.(entry.poff < Int63.zero)
+            || not after_previous
+          then
+            raise
+              (Errors.Pack_error (corrupted "invalid entry %d of the mapping" i));
           if i == 0 && entry.off > off then `Before entry else `Inside entry
   end
 

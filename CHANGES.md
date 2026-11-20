@@ -1,3 +1,13 @@
+## Unreleased
+
+### Fixed
+
+- **irmin-pack**
+  - Opening a store fails with `Corrupted_mapping_file` when the size of the
+    mapping file given by the control file is larger than the file, instead
+    of allocating it. Reading through an entry of the mapping which is not
+    valid fails with the same error (@balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added
