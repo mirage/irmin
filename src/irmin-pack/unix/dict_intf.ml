@@ -31,16 +31,29 @@ module type S = sig
     size:int63 ->
     dead_header_size:int ->
     string ->
-    (t, [> Io.open_error | Io.read_error | `Inconsistent_store ]) result
+    ( t,
+      [> Io.open_error | Io.read_error | `Inconsistent_store | `Decoding_error ]
+    )
+    result
 
   val open_ro :
     size:int63 ->
     dead_header_size:int ->
     string ->
-    (t, [> Io.open_error | Io.read_error | `Inconsistent_store ]) result
+    ( t,
+      [> Io.open_error | Io.read_error | `Inconsistent_store | `Decoding_error ]
+    )
+    result
 
   val refresh_end_poff :
-    t -> int63 -> (unit, [> Io.read_error | `Rw_not_allowed ]) result
+    t ->
+    int63 ->
+    ( unit,
+      [> Io.read_error
+      | `Rw_not_allowed
+      | `Inconsistent_store
+      | `Decoding_error ] )
+    result
 
   val empty_buffer : t -> bool
   val end_poff : t -> int63
