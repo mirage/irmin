@@ -1,0 +1,17 @@
+(executable
+ (name make_store)
+ (libraries irmin-pack irmin-pack.unix irmin-tezos eio eio_main))
+
+(cram
+ (package irmin-pack-tools)
+ (deps
+  %{exe:make_store.exe}
+  %{bin:irmin-ppcf}
+  %{bin:irmin-ppidx}
+  %{bin:irmin-tezos-explorer}))
+
+; The show command of irmin-tezos-explorer needs notty.
+
+(cram
+ (applies_to corrupted_show)
+ (enabled_if %{lib-available:notty}))
