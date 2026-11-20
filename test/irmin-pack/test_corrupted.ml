@@ -82,8 +82,82 @@ let test_corrupted_control_file () =
   | _ -> Alcotest.fail "unexpected error");
   Lwt.return_unit
 
+let direct_key key =
+  match Irmin_pack_unix.Pack_key.inspect key with
+  | Direct { offset; hash; length; _ } -> (offset, hash, length)
+  | Indexed _ -> Alcotest.fail "not a direct key"
+
+(* A store with one commit: the keys of the commit and of its root node. *)
+let store_with_commit () =
+  rm_dir root;
+  let* repo = Store.Repo.v (config ~fresh:true root) in
+  let* store = Store.main repo in
+  let* () = Store.set_exn ~info store [ "a" ] "b" in
+  let* commit = Store.Head.get store in
+  let commit_key = Store.Commit.key commit in
+  let node_key =
+    match Store.Tree.key (Store.Commit.tree commit) with
+    | Some (`Node key) -> key
+    | Some (`Contents _) | None -> Alcotest.fail "no node key"
+  in
+  let+ () = Store.Repo.close repo in
+  (commit_key, node_key)
+
+(* Read the commit of [key] in the store. *)
+let read_commit key =
+  let* repo = Store.Repo.v (config ~fresh:false root) in
+  Lwt.finalize
+    (fun () -> Store.Commit.of_key repo key)
+    (fun () -> Store.Repo.close repo)
+
+let check_raises msg expected f =
+  Lwt.try_bind f
+    (fun _ -> Alcotest.failf "%s: no exception" msg)
+    (fun exn ->
+      if expected exn then Lwt.return_unit
+      else
+        Alcotest.failf "%s: unexpected exception %s" msg
+          (Printexc.to_string exn))
+
+let corrupted = function
+  | Irmin_pack_unix.Pack_store.Corrupted_store _ -> true
+  | _ -> false
+
+(* The bytes of an entry are not trusted: a wrong kind or a wrong length is
+   reported as a corruption, and no memory is allocated from the length. *)
+let test_corrupted_entry () =
+  let* commit_key, node_key = store_with_commit () in
+  let offset, hash, length = direct_key commit_key in
+  let node_offset, _, node_length = direct_key node_key in
+  let key ~offset ~length =
+    Irmin_pack_unix.Pack_key.v_direct ~offset ~length hash
+  in
+  let* () =
+    check_raises "negative length" corrupted (fun () ->
+        read_commit (key ~offset ~length:(-1)))
+  in
+  let* () =
+    check_raises "length after the end"
+      (function
+        | Irmin_pack_unix.Pack_store.Invalid_read _ -> true | _ -> false)
+      (fun () -> read_commit (key ~offset ~length:max_int))
+  in
+  let* () =
+    check_raises "entry of another kind" corrupted (fun () ->
+        read_commit (key ~offset:node_offset ~length:node_length))
+  in
+  (* The kind of the commit is not a kind any more *)
+  let suffix = Filename.concat root "store.0.suffix" in
+  let contents = Bytes.of_string (read_file suffix) in
+  Bytes.set contents (Int63.to_int offset + Store.Hash.hash_size) 'X';
+  write_file suffix (Bytes.to_string contents);
+  check_raises "unknown kind" corrupted (fun () ->
+      read_commit (key ~offset ~length))
+
 let tests =
   [
     Alcotest_lwt.test_case "Corrupted control file" `Quick (fun _switch ->
         test_corrupted_control_file);
+    Alcotest_lwt.test_case "Corrupted entry" `Quick (fun _switch ->
+        test_corrupted_entry);
   ]

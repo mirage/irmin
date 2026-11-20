@@ -444,6 +444,13 @@ struct
       | V2_nonroot tv ->
           encode_bin_tv_staggered tv Pack_value.Kind.Inode_v2_nonroot f
 
+    let check_real_length length =
+      if not (is_real_length length) then
+        Fmt.failwith "Inode: invalid length %d" length
+
+    let unexpected_kind k =
+      Fmt.failwith "Inode: unexpected kind %a" Pack_value.Kind.pp k
+
     let decode_bin_tv s off =
       let kind = decode_bin_kind s off in
       match kind with
@@ -455,17 +462,16 @@ struct
           V1_stable v
       | Inode_v2_root ->
           let length = decode_bin_int s off in
-          assert (is_real_length length);
+          check_real_length length;
           let v = decode_bin_v s off in
           V2_root { length; v }
       | Inode_v2_nonroot ->
           let length = decode_bin_int s off in
-          assert (is_real_length length);
+          check_real_length length;
           let v = decode_bin_v s off in
           V2_nonroot { length; v }
-      | Commit_v1 | Commit_v2 -> assert false
-      | Contents -> assert false
-      | Dangling_parent_commit -> assert false
+      | (Commit_v1 | Commit_v2 | Contents | Dangling_parent_commit) as k ->
+          unexpected_kind k
 
     let size_of_tv =
       let of_encoding s off =
@@ -482,8 +488,8 @@ struct
             let after = !offref in
             let lenlen = after - before in
             magic_len + lenlen + vlen
-        | Commit_v1 | Commit_v2 | Contents -> assert false
-        | Dangling_parent_commit -> assert false
+        | (Commit_v1 | Commit_v2 | Contents | Dangling_parent_commit) as k ->
+            unexpected_kind k
       in
       Irmin.Type.Size.custom_dynamic ~of_encoding ()
 
