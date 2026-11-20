@@ -202,6 +202,22 @@ end = struct
       Index.close_exn index
   end
 
+  (* The data file may be corrupted: what is read from it is checked before
+     being used. *)
+  let corrupted ~off fmt =
+    Fmt.kstr
+      (fun msg ->
+        Fmt.failwith
+          "Couldn't decode the value at offset %a: %s. Corrupted data file?"
+          Int63.pp off msg)
+      fmt
+
+  (* The largest buffer used to decode an entry. *)
+  let max_buffer_length = 1_000_000_000 (* 1 GB *)
+
+  let is_magic c =
+    List.exists (fun k -> Pack_value.Kind.to_magic k = c) Pack_value.Kind.all
+
   let decode_entry_length = function
     | Pack_value.Kind.Contents -> Contents.decode_bin_length
     | Commit_v1 | Commit_v2 | Dangling_parent_commit -> Commit.decode_bin_length
@@ -214,6 +230,8 @@ end = struct
       (* Decode the key and kind by hand *)
       let key = decode_key buffer buffer_pos in
       assert (!buffer_pos = buffer_off + Hash.hash_size);
+      let magic = buffer.[!buffer_pos] in
+      if not (is_magic magic) then corrupted ~off "unknown kind %C" magic;
       let kind = decode_kind buffer buffer_pos in
       assert (!buffer_pos = buffer_off + Hash.hash_size + 1);
       (* Get the length of the entire entry *)
@@ -235,6 +253,8 @@ end = struct
     let length_length = !pos_ref - ilength in
     Hash.hash_size + 1 + length_length + suffix_length
 
+  (* The length of the entry at [off], read in its header, or [None] for the
+     kinds which have no length header. *)
   let guess_entry_len dispatcher ~off =
     let min_bytes_needed_to_discover_length = Hash.hash_size + 1 in
     let max_bytes_needed_to_discover_length =
@@ -246,7 +266,13 @@ end = struct
         ~min_len:min_bytes_needed_to_discover_length
         ~max_len:max_bytes_needed_to_discover_length buffer
     in
-    decode_entry_len buffer
+    let magic = Bytes.get buffer Hash.hash_size in
+    if not (is_magic magic) then corrupted ~off "unknown kind %C" magic;
+    match Pack_value.Kind.of_magic_exn magic with
+    | Commit_v1 | Inode_v1_unstable | Inode_v1_stable -> None
+    | Commit_v2 | Inode_v2_root | Inode_v2_nonroot | Dangling_parent_commit
+    | Contents ->
+        Some (decode_entry_len buffer)
 
   (* Read at most [len], by checking that [(off, len)] don't go out of bounds of
      the suffix file. *)
@@ -274,14 +300,54 @@ end = struct
       iter_pack_entry =
     let stats = Stats.empty () in
     let buffer = ref (Bytes.create initial_buffer_size) in
-    let on_entry missing_hash off =
-      let len = guess_entry_len dispatcher ~off in
-      if len > Bytes.length !buffer then buffer := Bytes.create (2 * len);
-      let _ = Dispatcher.read_exn dispatcher ~off ~len !buffer in
-      let { key; data } =
+    let decode ~off buffer =
+      try decode_entry_exn ~off ~buffer ~buffer_off:0
+      with Not_enough_buffer -> corrupted ~off "truncated entry"
+    in
+    let grow len =
+      if len > Bytes.length !buffer then buffer := Bytes.create (2 * len)
+    in
+    (* An entry without length header is read until it can be decoded, within
+       what remains of the file. *)
+    let rec decode_without_header ~off ~remaining =
+      let max_len = min (Bytes.length !buffer) remaining in
+      let len, _volume =
+        Dispatcher.read_range_exn dispatcher ~off
+          ~min_len:(min max_len (Hash.hash_size + 1))
+          ~max_len !buffer
+      in
+      match
         decode_entry_exn ~off
-          ~buffer:(Bytes.unsafe_to_string !buffer)
+          ~buffer:(Bytes.sub_string !buffer 0 len)
           ~buffer_off:0
+      with
+      | entry -> entry
+      | exception Not_enough_buffer ->
+          if len < max_len || max_len = remaining then
+            corrupted ~off "truncated entry"
+          else (
+            grow (min (2 * max_len) remaining);
+            decode_without_header ~off ~remaining)
+    in
+    let on_entry missing_hash off =
+      let remaining =
+        Int63.to_int Int63.Syntax.(Dispatcher.end_offset dispatcher - off)
+      in
+      let { key; data } =
+        match guess_entry_len dispatcher ~off with
+        | None -> decode_without_header ~off ~remaining
+        | Some len ->
+            (* The length is read from the file: it is checked before
+               anything is allocated *)
+            if len < Hash.hash_size + 2 || len > remaining then
+              corrupted ~off "invalid length %d" len;
+            grow len;
+            let _ = Dispatcher.read_exn dispatcher ~off ~len !buffer in
+            let entry = decode ~off (Bytes.unsafe_to_string !buffer) in
+            let _, entry_len, _ = entry.data in
+            if entry_len <> len then
+              corrupted ~off "length %d instead of %d" entry_len len;
+            entry
       in
       let off', entry_len, kind = data in
       let entry_lenL = Int63.of_int entry_len in
@@ -314,7 +380,7 @@ end = struct
     in
     let expand_and_refill_buffer ~from =
       let length = Bytes.length !buffer in
-      if length > 1_000_000_000 (* 1 GB *) then
+      if length > max_buffer_length then
         Fmt.failwith
           "Couldn't decode the value at offset %a in %d of buffer space. \
            Corrupted data file?"
