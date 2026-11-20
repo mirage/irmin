@@ -82,8 +82,41 @@ let test_corrupted_control_file ~fs () =
         "path is corrupted" s "./_build/test-corrupted/store.control"
   | _ -> Alcotest.fail "unexpected error"
 
+(* The length and the kind of an entry of the pack file are checked before
+   being used by [traverse_pack_file], the core of [irmin-fsck]. *)
+let test_corrupted_pack_entry ~fs () =
+  let root = root fs in
+  let config ~sw ~fresh =
+    Irmin_pack.config ~sw ~fs ~fresh ?index_log_size
+      ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root
+  in
+  let corrupt name patch =
+    Eio.Switch.run @@ fun sw ->
+    rm_dir root;
+    let repo = Store.Repo.v (config ~sw ~fresh:true) in
+    let store = Store.main repo in
+    Store.set_exn ~info store [ "a" ] "b";
+    Store.Repo.close repo;
+    let suffix = Eio.Path.(root / "store.0.suffix") in
+    let blob = Bytes.of_string (read_file suffix) in
+    patch blob;
+    write_file suffix (Bytes.to_string blob);
+    match Store.traverse_pack_file `Check_index (config ~sw ~fresh:false) with
+    | () -> Alcotest.failf "%s: the corruption is not detected" name
+    | exception Failure msg ->
+        if not (String.ends_with ~suffix:"Corrupted data file?" msg) then
+          Alcotest.failf "%s: unexpected error %S" name msg
+  in
+  let hash_size = Store.Hash.hash_size in
+  (* The length of the first entry is set to 16 GiB *)
+  corrupt "length" (fun b ->
+      Bytes.blit_string "\x80\x80\x80\x80\x40" 0 b (hash_size + 1) 5);
+  corrupt "kind" (fun b -> Bytes.set b hash_size '\xff')
+
 let tests ~fs =
   [
     Alcotest.test_case "Corrupted control file" `Quick
       (test_corrupted_control_file ~fs);
+    Alcotest.test_case "Corrupted pack entry" `Quick
+      (test_corrupted_pack_entry ~fs);
   ]
