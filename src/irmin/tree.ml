@@ -2802,7 +2802,7 @@ module Make (P : Backend.S) = struct
         (tree_after, result))
       (function
         | Pruned_hash h ->
-            (* finaly check that [f] only access valid parts of the proof. *)
+            (* finally check that [f] only access valid parts of the proof. *)
             Fmt.kstr Irmin_proof.bad_proof_exn
               "verify_proof: %s is trying to read through a blinded node or \
                object (%a)"
