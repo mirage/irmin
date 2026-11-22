@@ -151,8 +151,8 @@ When `f` is done, Irmin computes `state`, which is the Merkle proof. The paths t
 
 ### Other use cases
 
-The goal of the above example is to share `state` while `hash_before` is publically known, so that anyone can verify that both match, without knowing `repo`. `hash_after` and `tree_after` are unimportant for this task.
+The goal of the above example is to share `state` while `hash_before` is publicly known, so that anyone can verify that both match, without knowing `repo`. `hash_after` and `tree_after` are unimportant for this task.
 
-`hash_after` and `tree_after` are useful in tasks where the goal is to share `proof` and `f` while `hash_before` is publically known, so that anyone can verify that `f` applied on a tree that hashes to `hash_before` produces a tree that hashes to `hash_after`, without knowing `repo`. The `Store.Tree.verify_proof` function exists to support that use case.
+`hash_after` and `tree_after` are useful in tasks where the goal is to share `proof` and `f` while `hash_before` is publicly known, so that anyone can verify that `f` applied on a tree that hashes to `hash_before` produces a tree that hashes to `hash_after`, without knowing `repo`. The `Store.Tree.verify_proof` function exists to support that use case.
 
 Irmin's Merkle proofs are used in Tezos' _rollups_ where some peers need to verify what some other peers did in other blockchains.
