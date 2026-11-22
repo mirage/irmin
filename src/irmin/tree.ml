@@ -1404,7 +1404,7 @@ module Make (P : Backend.S) = struct
                       let s = Array.to_seq arr in
                       (seq [@tailcall]) ~path acc d s k)
               | None ->
-                  (* XXX: That node is skipped if is is of tag Value *)
+                  (* XXX: That node is skipped if is of tag Value *)
                   skip path acc >>= k)
         in
         match depth with
