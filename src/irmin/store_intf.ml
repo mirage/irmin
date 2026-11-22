@@ -284,7 +284,7 @@ module type S_generic_key = sig
     val find : t -> commit option Lwt.t
     (** [find t] is the current head of the store [t]. This works for both
         persistent and temporary branches. In the case of a persistent branch,
-        this involves getting the the head associated with the branch, so this
+        this involves getting the head associated with the branch, so this
         may block. In the case of a temporary store, it simply returns the
         current head. Returns [None] if the store has no contents. Similar to
         [git rev-parse HEAD]. *)
@@ -385,7 +385,7 @@ module type S_generic_key = sig
     (** [key c] is [c]'s key. *)
 
     val of_key : repo -> commit_key -> commit option Lwt.t
-    (** [of_key r k] is the the commit object in [r] with key [k], or [None] if
+    (** [of_key r k] is the commit object in [r] with key [k], or [None] if
         no such commit object exists. *)
 
     val of_hash : repo -> hash -> commit option Lwt.t
