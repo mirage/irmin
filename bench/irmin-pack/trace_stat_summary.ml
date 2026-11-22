@@ -932,9 +932,9 @@ let summarise' header block_count (row_seq : Def.row Seq.t) =
              ofi (bag.Def.index.nb_reads + bag.Def.index.nb_writes))
       |+ bs_folder_of_bag_getter (fun bag -> ofi bag.Def.index.nb_merge)
       |+ bs_folder_of_bag_getter ~should_cumulate_value:true (fun bag ->
-             (* When 1 merge occured, [data_size] bytes were written.
+             (* When 1 merge occurred, [data_size] bytes were written.
 
-                When 2 merge occured, [data_size * 2 - log_size] bytes were
+                When 2 merge occurred, [data_size * 2 - log_size] bytes were
                 written. But here we just count [data_size * 2]. *)
              let merge_count =
                List.length bag.Def.index.new_merge_durations |> Int64.of_int
