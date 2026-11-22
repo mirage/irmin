@@ -1,5 +1,5 @@
 # Irmin-pack-tools
-This folder contains several tools meant to provide usefull ways to debug and dump informations about stores.
+This folder contains several tools meant to provide useful ways to debug and dump informations about stores.
 
 Currently, there are the following tools:
 - [`ppcf`](#ppcf), a json printer for control files
