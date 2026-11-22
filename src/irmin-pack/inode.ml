@@ -1202,7 +1202,7 @@ struct
 
     let stabilize_root layout t =
       let n = length t in
-      (* If [t] is the empty inode (i.e. [n = 0]) then is is already stable *)
+      (* If [t] is the empty inode (i.e. [n = 0]) then is already stable *)
       if n > Conf.stable_hash then { t with root = true }
       else
         let v_ref =

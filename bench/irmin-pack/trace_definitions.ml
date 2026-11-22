@@ -304,7 +304,7 @@ module Stat_trace = struct
         bytes. The trace reaches 1GB after ~250k commits. *)
 
     type setup_play = unit [@@deriving repr]
-    (** Informations gathered from the tezos node.
+    (** Information gathered from the tezos node.
 
         Noting so far. Any ideas? *)
 
@@ -313,7 +313,7 @@ module Stat_trace = struct
       artefacts_dir : string;
     }
     [@@deriving repr]
-    (** Informations gathered from the tree.exe parameters. *)
+    (** Information gathered from the tree.exe parameters. *)
 
     type config = {
       inode_config : int * int * int;

@@ -183,7 +183,7 @@ struct
     if List.mem ~equal:equal_key k1 (Val.parents v2) then Merge.ok k2
     else if List.mem ~equal:equal_key k2 (Val.parents v1) then Merge.ok k1
     else
-      (* If we get an error while looking the the lca, then we
+      (* If we get an error while looking the lca, then we
          assume that there is no common ancestor. Maybe we want to
          expose this to the user in a more structured way. But maybe
          that's too much low-level details. *)

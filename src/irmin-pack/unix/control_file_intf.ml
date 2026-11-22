@@ -23,7 +23,7 @@ module Payload = struct
       (** [entry_offset_at_upgrade_to_v3] is the offset of the first entry that
           is known to have been created using [irmin_pack_version = `V2] or
           more. The entries before that point may be v1 entries. V1 entries need
-          an entry in index because it is the only place their lenght is stored. *)
+          an entry in index because it is the only place their length is stored. *)
 
       type from_v3_gced = { suffix_start_offset : int63; generation : int }
       [@@deriving irmin]
