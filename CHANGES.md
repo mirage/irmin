@@ -10,6 +10,22 @@
     it, the `show` command of `irmin-tezos-explorer` only reports an error
     (@balat)
 
+## 3.12.0 (unreleased)
+
+### Added
+
+- **irmin-pack**
+  - Add `Pack_value.Kind.of_magic`, and expose `Pack_store.Corrupted_store`
+    (@balat)
+
+### Fixed
+
+- **irmin-pack**
+  - Raise `Pack_store.Corrupted_store` when an entry of the pack file has an
+    unknown kind or the kind of another store, instead of `Failure` or
+    `Assert_failure`. Check the length of an entry before allocating its
+    buffer (@balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

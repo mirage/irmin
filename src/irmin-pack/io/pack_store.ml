@@ -24,6 +24,26 @@ exception Dangling_hash
 let invalid_read fmt = Fmt.kstr (fun s -> raise (Invalid_read s)) fmt
 let corrupted_store fmt = Fmt.kstr (fun s -> raise (Corrupted_store s)) fmt
 
+let () =
+  Printexc.register_printer (function
+    | Corrupted_store msg ->
+        Some ("Irmin_pack_io.Pack_store.Corrupted_store: " ^ msg)
+    | _ -> None)
+
+(* The kind of an entry, from its magic char. *)
+let kind_of_magic c =
+  match Pack_value.Kind.of_magic c with
+  | Some kind -> kind
+  | None -> corrupted_store "Unknown kind of pack entry %C." c
+
+(* Decoding bytes which are not a valid entry of the right kind fails with
+   [Failure] or [Invalid_argument]. *)
+let with_decoding_errors what ~off f =
+  try f ()
+  with Failure msg | Invalid_argument msg ->
+    corrupted_store "Cannot decode the %s at offset %a: %s." what Int63.pp off
+      msg
+
 module Table (K : Irmin.Hash.S) = struct
   module K = struct
     include K
@@ -179,8 +199,9 @@ struct
          (buffer is read, but not mutated). This is safe. *)
       decode_bin_hash (Bytes.unsafe_to_string buf) (ref 0)
     in
-    let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
+    let kind = kind_of_magic (Bytes.get buf Hash.hash_size) in
     let size_of_value_and_length_header =
+      with_decoding_errors "entry header" ~off @@ fun () ->
       match Val.length_header kind with
       | None -> None
       | Some `Varint ->
@@ -202,7 +223,7 @@ struct
   (* This function assumes magic is written at hash_size + 1 for every
      object. *)
   let gced t buf =
-    let kind = Pack_value.Kind.of_magic_exn (Bytes.get buf Hash.hash_size) in
+    let kind = kind_of_magic (Bytes.get buf Hash.hash_size) in
     match (kind, Fm.gc_behaviour t.fm) with
     | kind, `Delete -> kind = Pack_value.Kind.Dangling_parent_commit
     | _, `Archive -> false
@@ -307,6 +328,16 @@ struct
 
   let find_in_pack_file ~key_of_offset t key =
     let off, len, volume_identifier = get_location t key in
+    (* [len] comes from the index or from the header of the entry: it is
+       checked before anything is allocated. *)
+    if len < Entry_prefix.min_length then
+      corrupted_store "Invalid length %d of the entry at offset %a." len
+        Int63.pp off;
+    if
+      Int63.Syntax.(
+        off < Int63.zero
+        || Int63.of_int len > Dispatcher.end_offset t.dispatcher - off)
+    then raise (Errors.Pack_error `Read_out_of_bounds);
     let buf = Bytes.create len in
     let volume_identifier =
       Dispatcher.read_exn t.dispatcher ~off ~len ?volume_identifier buf
@@ -322,6 +353,7 @@ struct
            creation, we assume Dispatcher.read_if_not_gced returns unique
            ownership; we give up unique ownership in call to
            [Bytes.unsafe_to_string]. This is safe. *)
+        with_decoding_errors "entry" ~off @@ fun () ->
         Val.decode_bin ~key_of_offset ~key_of_hash ~dict
           (Bytes.unsafe_to_string buf)
           (ref 0)

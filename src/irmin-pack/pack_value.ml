@@ -38,16 +38,21 @@ module Kind = struct
     | Inode_v2_nonroot -> 'O'
     | Dangling_parent_commit -> 'P'
 
-  let of_magic_exn = function
-    | 'C' -> Commit_v1
-    | 'D' -> Commit_v2
-    | 'B' -> Contents
-    | 'I' -> Inode_v1_unstable
-    | 'N' -> Inode_v1_stable
-    | 'R' -> Inode_v2_root
-    | 'O' -> Inode_v2_nonroot
-    | 'P' -> Dangling_parent_commit
-    | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
+  let of_magic = function
+    | 'C' -> Some Commit_v1
+    | 'D' -> Some Commit_v2
+    | 'B' -> Some Contents
+    | 'I' -> Some Inode_v1_unstable
+    | 'N' -> Some Inode_v1_stable
+    | 'R' -> Some Inode_v2_root
+    | 'O' -> Some Inode_v2_nonroot
+    | 'P' -> Some Dangling_parent_commit
+    | _ -> None
+
+  let of_magic_exn c =
+    match of_magic c with
+    | Some k -> k
+    | None -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
   let all =
     [
@@ -197,8 +202,10 @@ struct
     end
   end
 
+  let unexpected_kind k = Fmt.failwith "Commit: unexpected kind %a" Kind.pp k
+
   let length_header = function
-    | Kind.Contents -> assert false
+    | Kind.Contents as k -> unexpected_kind k
     | x -> Kind.length_header_exn x
 
   let encode_bin ~dict:_ ~offset_of_key hash v f =
@@ -229,7 +236,7 @@ struct
         let node = key_of_address commit.node_offset in
         let parents = List.map key_of_address commit.parent_offsets in
         Commit.v ~info ~node ~parents
-    | _ -> assert false
+    | k -> unexpected_kind k
 
   let decode_bin_length =
     let of_v0_entry = get_dynamic_sizer_exn Entry.V1.t
@@ -238,5 +245,5 @@ struct
       match Kind.of_magic_exn s.[off + Hash.hash_size] with
       | Commit_v1 -> of_v0_entry s off
       | Commit_v2 | Dangling_parent_commit -> of_v1_entry s off
-      | _ -> assert false
+      | k -> unexpected_kind k
 end
