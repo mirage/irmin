@@ -245,7 +245,10 @@ struct
           "No tmp volume control file to swap. %s"
             (Fmt.str "%a" Eio.Path.pp control)];
         Ok ()
-    | `Directory | `Other -> assert false
+    | `Directory | `Other ->
+        Error
+          (`Sys_error
+             (Fmt.str "%a is not a regular file" Eio.Path.pp control_tmp))
 
   let cleanup ~generation t =
     let path = path t in

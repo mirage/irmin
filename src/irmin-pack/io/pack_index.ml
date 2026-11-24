@@ -89,6 +89,29 @@ struct
     (* | Unix.Unix_error (x, y, z) -> Error (`Io_misc (x, y, z)) *)
     | Failure msg -> Error (`Index_failure msg)
 
+  let symlinks root = Io.symlinks Eio.Path.(root / "index")
+
+  let v_rw ?flush_callback ?throttle ~fresh ~log_size root =
+    let open Result_syntax in
+    let* links = symlinks root in
+    let* () =
+      match (fresh, links) with
+      | _, [] -> Ok ()
+      | true, _ ->
+          List.fold_left
+            (fun acc path ->
+              let* () = acc in
+              Io.unlink path)
+            (Ok ()) links
+      | false, path :: _ ->
+          [%log.err
+            "Cannot open the index read-write: %a is a symbolic link"
+              Eio.Path.pp path];
+          Error `Not_a_file
+    in
+    v ?flush_callback ~fresh ~readonly:false ?throttle ~log_size
+      (Eio.Path.native_exn root)
+
   let add ?overcommit t k v = replace ?overcommit t k v
   let find t k = match find t k with exception Not_found -> None | h -> Some h
   let close_exn t = Index_raw.close t
