@@ -85,6 +85,12 @@ end
 
 module type Sigs = sig
   exception Invalid_read of string
+
+  exception Corrupted_store of string
+  (** Raised when an entry of the pack file cannot be decoded, or when
+      [unsafe_find ~check_integrity:true] reads an entry whose hash is not the
+      expected one. *)
+
   exception Dangling_hash
 
   module type S = S
