@@ -82,8 +82,42 @@ let test_corrupted_control_file () =
   | _ -> Alcotest.fail "unexpected error");
   Lwt.return_unit
 
+(* The length and the kind of an entry of the pack file are checked before
+   being used by [traverse_pack_file], the core of [irmin-fsck]. *)
+let test_corrupted_pack_entry () =
+  let config ~fresh =
+    Irmin_pack.config ~fresh ?index_log_size
+      ~indexing_strategy:Irmin_pack.Indexing_strategy.minimal root
+  in
+  let corrupt name patch =
+    rm_dir root;
+    let* repo = Store.Repo.v (config ~fresh:true) in
+    let* store = Store.main repo in
+    let* () = Store.set_exn ~info store [ "a" ] "b" in
+    let* () = Store.Repo.close repo in
+    let suffix = Filename.concat root "store.0.suffix" in
+    let blob = Bytes.of_string (read_file suffix) in
+    patch blob;
+    write_file suffix (Bytes.to_string blob);
+    match Store.traverse_pack_file `Check_index (config ~fresh:false) with
+    | () -> Alcotest.failf "%s: the corruption is not detected" name
+    | exception Failure msg ->
+        if not (String.ends_with ~suffix:"Corrupted data file?" msg) then
+          Alcotest.failf "%s: unexpected error %S" name msg;
+        Lwt.return_unit
+  in
+  let hash_size = Store.Hash.hash_size in
+  (* The length of the first entry is set to 16 GiB *)
+  let* () =
+    corrupt "length" (fun b ->
+        Bytes.blit_string "\x80\x80\x80\x80\x40" 0 b (hash_size + 1) 5)
+  in
+  corrupt "kind" (fun b -> Bytes.set b hash_size '\xff')
+
 let tests =
   [
     Alcotest_lwt.test_case "Corrupted control file" `Quick (fun _switch ->
         test_corrupted_control_file);
+    Alcotest_lwt.test_case "Corrupted pack entry" `Quick (fun _switch ->
+        test_corrupted_pack_entry);
   ]
