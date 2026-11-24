@@ -29,6 +29,7 @@ depends: [
   "ptime"
   "hex"
   "irmin-test"  {with-test & = version}
+  "lwt"         {with-test}
   "alcotest"    {with-test}
 ]
 

@@ -1,0 +1,11 @@
+(executable
+ (name make_store)
+ (libraries irmin-pack irmin-pack.unix irmin-tezos lwt lwt.unix))
+
+(cram
+ (package irmin-pack-tools)
+ (deps
+  %{exe:make_store.exe}
+  %{bin:irmin-ppcf}
+  %{bin:irmin-ppidx}
+  %{bin:irmin-tezos-explorer}))
