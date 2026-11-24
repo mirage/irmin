@@ -39,26 +39,39 @@ module Make (Io : Io.S) = struct
     let buf = int32_to_bin_string len ^ v in
     Ao.append_exn t.ao buf
 
+  let length_size = 4
+
+  (* The lengths come from the file: they are checked before use. *)
   let refill t =
     let open Result_syntax in
     let from = t.last_refill_offset in
     let new_size = Ao.end_poff t.ao in
     let len = Int63.to_int Int63.Syntax.(new_size - from) in
-    t.last_refill_offset <- new_size;
-    let+ raw = Ao.read_to_string t.ao ~off:from ~len in
-    let pos_ref = ref 0 in
-    let rec aux n =
-      if !pos_ref >= len then ()
-      else
-        let v = decode_bin_int32 raw pos_ref in
-        let len = Int32.to_int v in
-        let v = String.sub raw !pos_ref len in
-        pos_ref := !pos_ref + len;
-        Hashtbl.add t.cache v n;
-        Hashtbl.add t.index n v;
-        (aux [@tailcall]) (n + 1)
+    let* () = if len < 0 then Error `Inconsistent_store else Ok () in
+    let* raw = Ao.read_to_string t.ao ~off:from ~len in
+    let decoding_error pos =
+      [%log.err
+        "[dict] %s: invalid entry at offset %a" (Ao.path t.ao) Int63.pp
+          Int63.Syntax.(from + Int63.of_int pos)];
+      Error `Decoding_error
     in
-    (aux [@tailcall]) (Hashtbl.length t.cache)
+    let rec aux pos n =
+      if pos >= len then Ok ()
+      else if len - pos < length_size then decoding_error pos
+      else
+        let v_len = Int32.to_int (decode_bin_int32 raw (ref pos)) in
+        let v_pos = pos + length_size in
+        if v_len < 0 || v_len > len - v_pos then decoding_error pos
+        else
+          let v = String.sub raw v_pos v_len in
+          Hashtbl.add t.cache v n;
+          Hashtbl.add t.index n v;
+          let pos = v_pos + v_len in
+          (* An entry is added only once, even if a next one is invalid *)
+          t.last_refill_offset <- Int63.Syntax.(from + Int63.of_int pos);
+          (aux [@tailcall]) pos (n + 1)
+    in
+    aux 0 (Hashtbl.length t.cache)
 
   let refresh_end_poff t new_end_poff =
     let open Result_syntax in
