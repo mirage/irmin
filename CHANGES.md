@@ -10,6 +10,18 @@
     it, the `show` command of `irmin-tezos-explorer` only reports an error
     (@balat)
 
+## 3.12.0 (unreleased)
+
+### Fixed
+
+- **irmin-pack-tools**
+  - `irmin-tezos-explorer`, `irmin-ppcf` and `irmin-ppidx` report the store
+    files which are not valid with a message and the exit code 1, instead of
+    stopping on an exception. `irmin-tezos-explorer parse` also exits with
+    the code 1 when the store cannot be opened (it was 0). An entry longer
+    than 16 MiB is refused with a message, and `show` checks the number of
+    entries announced by its index file before allocating them (@balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

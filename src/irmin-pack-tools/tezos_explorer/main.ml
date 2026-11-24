@@ -33,6 +33,11 @@ let index_path =
     & info [ "store_idx" ]
         ~doc:"the path to the index file generated, default to `store.index`")
 
+(* The errors about the store files are printed, with the exit code 1. *)
+let run name main store_path info_last_path info_next_path index_path =
+  Parse.Files.run ("irmin-tezos-explorer " ^ name) (fun () ->
+      main store_path info_last_path info_next_path index_path)
+
 (* Command parse *)
 let parse_cmd ~sw ~fs =
   let doc =
@@ -41,7 +46,7 @@ let parse_cmd ~sw ~fs =
   let info = Cmd.info "parse" ~doc in
   Cmd.v info
     Term.(
-      const (Parse.main ~sw ~fs)
+      const (run "parse" (Parse.main ~sw ~fs))
       $ store_path
       $ info_last_path
       $ info_next_path
@@ -53,7 +58,7 @@ let show_cmd ~sw ~fs =
   let info = Cmd.info "show" ~doc in
   Cmd.v info
     Term.(
-      const (Show_cmd.main ~sw ~fs)
+      const (run "show" (Show_cmd.main ~sw ~fs))
       $ store_path
       $ info_last_path
       $ info_next_path
@@ -70,4 +75,4 @@ let () =
   Eio_main.run @@ fun env ->
   Eio.Switch.run @@ fun sw ->
   let fs = Eio.Stdenv.fs env in
-  exit (Cmd.eval ~catch:false (main_cmd ~sw ~fs))
+  exit (Cmd.eval' ~catch:false (main_cmd ~sw ~fs))
