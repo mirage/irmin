@@ -26,15 +26,15 @@ module Make_persistent (Io : Io.S) (K : Irmin.Type.S) (V : Value.S) = struct
 
   let dead_header_size = 16
   let decode_bin = Irmin.Type.(unstage (decode_bin int32))
+  let length_size = 4
 
   let read_length32 ~file_pos block =
-    let len = 4 in
-    let buf = Bytes.create len in
-    Io.read_exn block ~off:!file_pos ~len buf;
-    (file_pos := Int63.Syntax.(!file_pos + Int63.of_int len));
+    let buf = Bytes.create length_size in
+    Io.read_exn block ~off:!file_pos ~len:length_size buf;
+    (file_pos := Int63.Syntax.(!file_pos + Int63.of_int length_size));
     let pos_ref = ref 0 in
     let v = decode_bin (Bytes.unsafe_to_string buf) pos_ref in
-    assert (!pos_ref = len);
+    assert (!pos_ref = length_size);
     Int32.to_int v
 
   let entry = Irmin.Type.(pair (string_of `Int32) V.t)
@@ -56,43 +56,58 @@ module Make_persistent (Io : Io.S) (K : Irmin.Type.S) (V : Value.S) = struct
           "Irmin_pack.Atomic_write: supplied value type must have a \
            fixed-width binary encoding"
 
-  let refill t ~to_ ~from =
-    let file_pos = ref from in
+  (* Read the entries from [t.block_size] to [to_]. [t.block_size] moves to
+     the end of each complete entry, so that a next refill starts after the
+     entries read before an error. A truncated entry at the end may be in the
+     middle of its write: it is read later. The lengths come from the file:
+     they are checked before use. *)
+  let refill t ~to_ =
+    let decoding_error () = Io_errors.raise_error `Decoding_error in
+    let file_pos = ref t.block_size in
+    let remaining () = Int63.to_int Int63.Syntax.(to_ - !file_pos) in
     let rec aux () =
-      if !file_pos >= to_ then ()
+      let start = !file_pos in
+      if remaining () < length_size then ()
       else
-        let start = !file_pos in
         let key_encoded_size = read_length32 ~file_pos t.block in
-        let buf_size = key_encoded_size + value_encoded_size in
-        let buf =
-          let buf = Bytes.create buf_size in
-          Io.read_exn t.block ~off:!file_pos ~len:buf_size buf;
-          let open Int63.Syntax in
-          file_pos := !file_pos + Int63.of_int buf_size;
-          Bytes.unsafe_to_string buf
-        in
-        let key =
-          match String.sub buf 0 key_encoded_size |> key_of_bin_string with
-          | Ok k -> k
-          | Error (`Msg e) -> failwith e
-        in
-        let value =
-          let pos_ref = ref key_encoded_size in
-          let v = decode_bin_value buf pos_ref in
-          assert (!pos_ref = buf_size);
-          v
-        in
-        if not (equal_value value V.null) then Tbl.add t.cache key value;
-        Tbl.add t.index key start;
-        (aux [@tailcall]) ()
+        if key_encoded_size < 0 then decoding_error ()
+        else if key_encoded_size > remaining () - value_encoded_size then
+          [%log.warn
+            "[branches] %s: entry beyond the end of the file at offset %a, not \
+             read yet"
+            (Io.path t.block) Int63.pp start]
+        else
+          let buf_size = key_encoded_size + value_encoded_size in
+          let buf =
+            let buf = Bytes.create buf_size in
+            Io.read_exn t.block ~off:!file_pos ~len:buf_size buf;
+            let open Int63.Syntax in
+            file_pos := !file_pos + Int63.of_int buf_size;
+            Bytes.unsafe_to_string buf
+          in
+          let key =
+            match String.sub buf 0 key_encoded_size |> key_of_bin_string with
+            | Ok k -> k
+            | Error (`Msg e) ->
+                [%log.err "[branches] cannot decode a key: %s" e];
+                decoding_error ()
+          in
+          let value =
+            let pos_ref = ref key_encoded_size in
+            let v = decode_bin_value buf pos_ref in
+            if !pos_ref <> buf_size then decoding_error ();
+            v
+          in
+          if not (equal_value value V.null) then Tbl.add t.cache key value;
+          Tbl.add t.index key start;
+          t.block_size <- !file_pos;
+          (aux [@tailcall]) ()
     in
     aux ()
 
   let sync_offset t =
-    let former_offset = t.block_size in
-    t.block_size <- block_size t.block;
-    if t.block_size > former_offset then
-      refill t ~to_:t.block_size ~from:former_offset
+    let size = block_size t.block in
+    if size > t.block_size then refill t ~to_:size
 
   let unsafe_find t k =
     [%log.debug "[branches] find %a" pp_key k];
@@ -137,9 +152,16 @@ module Make_persistent (Io : Io.S) (K : Irmin.Type.S) (V : Value.S) = struct
     in
     let cache = Tbl.create 997 in
     let index = Tbl.create 997 in
-    let block_size = block_size block in
+    let size = block_size block in
+    let block_size = Int63.of_int dead_header_size in
     let t = { cache; index; block; block_size; w = watches } in
-    refill t ~to_:block_size ~from:(Int63.of_int dead_header_size);
+    refill t ~to_:size;
+    (* A writer appends after the end of the file: it cannot leave a truncated
+       entry, from a crash, before the next ones *)
+    if t.block_size <> size && not readonly then (
+      [%log.err
+        "[branches] %s: truncated entry at offset %a" file Int63.pp t.block_size];
+      Io_errors.raise_error `Decoding_error);
     Lwt.return t
 
   let clear _ = Fmt.failwith "Unsupported operation"
