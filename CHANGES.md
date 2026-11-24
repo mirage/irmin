@@ -10,6 +10,15 @@
     it, the `show` command of `irmin-tezos-explorer` only reports an error
     (@balat)
 
+## 3.12.0 (unreleased)
+
+### Fixed
+
+- **irmin-pack**
+  - `traverse_pack_file`, used by `irmin-fsck`, checks the length and the kind
+    of each entry before using them, instead of allocating a buffer of any
+    length read from a corrupted file (@balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added
