@@ -23,6 +23,7 @@ let suite =
     ("node", Test_node.suite);
     ("hash", Test_hash.suite);
     ("conf", Test_conf.suite);
+    ("watch", Test_watch.suite);
   ]
 
 let () =

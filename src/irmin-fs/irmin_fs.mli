@@ -50,7 +50,11 @@ module type IO = sig
   (** [file_exist f] is true if [f] exists. *)
 
   val read_file : io:io -> path -> string option
-  (** Read the contents of a file using mmap. *)
+  (** [read_file ~io file] is the contents of [file], or [None] if there is no
+      file at this path: nothing, a directory, a path that goes through a file,
+      or a name too long. Other errors, such as a permission denied or a loop of
+      symbolic links, are raised, so that [test_and_set_file] does not overwrite
+      a file it cannot read. *)
 
   (** {2 Write Operations} *)
 

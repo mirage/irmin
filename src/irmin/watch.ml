@@ -310,7 +310,7 @@ struct
           !listen_dir_hook t.id dir (fun file ->
               match key file with
               | None -> ()
-              | Some key ->
+              | Some key -> (
                   let rec read n =
                     let value = value key in
                     let n' = t.notifications in
@@ -319,7 +319,13 @@ struct
                       [%log.debug "Stale event, trying reading again"];
                       read n')
                   in
-                  read t.notifications)
+                  (* A value that cannot be read is neither a removal, nor a
+                     reason to stop the notifications of the other keys. *)
+                  try read t.notifications
+                  with Eio.Io _ as exn ->
+                    [%log.err
+                      "%s: cannot read %a: %a" (to_string t) pp_key key Fmt.exn
+                        exn]))
         in
         t.stop_listening <- f)
       else [%log.debug "%s: already listening on %s" (to_string t) dir]
