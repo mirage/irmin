@@ -35,17 +35,30 @@ module type S = sig
     size:int63 ->
     dead_header_size:int ->
     Eio.Fs.dir_ty Eio.Path.t ->
-    (t, [> Io.open_error | Io.read_error | `Inconsistent_store ]) result
+    ( t,
+      [> Io.open_error | Io.read_error | `Inconsistent_store | `Decoding_error ]
+    )
+    result
 
   val open_ro :
     sw:Eio.Switch.t ->
     size:int63 ->
     dead_header_size:int ->
     Eio.Fs.dir_ty Eio.Path.t ->
-    (t, [> Io.open_error | Io.read_error | `Inconsistent_store ]) result
+    ( t,
+      [> Io.open_error | Io.read_error | `Inconsistent_store | `Decoding_error ]
+    )
+    result
 
   val refresh_end_poff :
-    t -> int63 -> (unit, [> Io.read_error | `Rw_not_allowed ]) result
+    t ->
+    int63 ->
+    ( unit,
+      [> Io.read_error
+      | `Rw_not_allowed
+      | `Inconsistent_store
+      | `Decoding_error ] )
+    result
 
   val empty_buffer : t -> bool
   val end_poff : t -> int63

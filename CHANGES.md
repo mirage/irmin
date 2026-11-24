@@ -10,6 +10,16 @@
     it, the `show` command of `irmin-tezos-explorer` only reports an error
     (@balat)
 
+## 3.12.0 (unreleased)
+
+### Fixed
+
+- **irmin-pack**
+  - Opening or reloading a store with a corrupted dictionary fails with
+    `Decoding_error`. A read-only store checks the end offsets of the
+    control file against the size of the files when it is reloaded, as when
+    it is opened (@balat)
+
 ## 3.11.0 (2025-06-19)
 
 ### Added

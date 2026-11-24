@@ -94,7 +94,9 @@ module type S = sig
   *)
 
   val refresh_appendable_chunk_poff :
-    t -> int63 -> (unit, [> `Rw_not_allowed ]) result
+    t ->
+    int63 ->
+    (unit, [> Io.read_error | `Rw_not_allowed | `Inconsistent_store ]) result
   (** Ingest the new end offset of the appendable chunk file. Typically happens
       in RO mode when the control file has been re-read.
 

@@ -121,8 +121,14 @@ module Make (Io : Io_intf.S) (Errs : Io_errors.S with module Io = Io) = struct
     match t.rw_perm with
     | Some _ -> Error `Rw_not_allowed
     | None ->
-        Atomic.set t.persisted_end_poff new_end_poff;
-        Ok ()
+        (* The new offset comes from the control file: it is checked as when
+           opening the file *)
+        let open Result_syntax in
+        let dead_header_size = Int63.to_int t.dead_header_size in
+        let+ () =
+          check_consistent_store ~end_poff:new_end_poff ~dead_header_size t.io
+        in
+        Atomic.set t.persisted_end_poff new_end_poff
 
   let flush t =
     match t.rw_perm with

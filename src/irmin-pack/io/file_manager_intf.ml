@@ -109,6 +109,7 @@ module type S = sig
 
   type open_rw_error :=
     [ `Corrupted_control_file of string
+    | `Decoding_error
     | `Corrupted_mapping_file of string
     | `Double_close
     | `Closed
@@ -159,6 +160,7 @@ module type S = sig
 
   type open_ro_error :=
     [ `Corrupted_control_file of string
+    | `Decoding_error
     | `Corrupted_mapping_file of string
     | `Io_misc of Io.misc_error
     | `Migration_needed

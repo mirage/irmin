@@ -151,7 +151,10 @@ module type S = sig
 
       Always returns [Error `Ro_not_allowed]. *)
 
-  val refresh_end_poff : t -> int63 -> (unit, [> `Rw_not_allowed ]) result
+  val refresh_end_poff :
+    t ->
+    int63 ->
+    (unit, [> Io.read_error | `Rw_not_allowed | `Inconsistent_store ]) result
   (** Ingest the new end offset of the file. Typically happens in RO mode when
       the control file has been re-read.
 
