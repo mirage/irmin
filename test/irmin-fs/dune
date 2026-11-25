@@ -6,7 +6,15 @@
 (library
  (name test_fs_unix)
  (modules test_fs_unix)
- (libraries test_fs irmin irmin-fs.unix irmin-test irmin-watcher))
+ (libraries
+  test_fs
+  irmin
+  irmin-fs.unix
+  irmin-test
+  irmin-watcher
+  alcotest
+  eio
+  unix))
 
 (executable
  (name test)

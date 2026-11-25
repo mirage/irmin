@@ -196,22 +196,22 @@ module IO = struct
         Path.(with_open_out ~create:(`Or_truncate 0o644) tmp_file fn);
         Path.rename tmp_file file)
 
-  let read_file_with_read file size =
-    let buf = Cstruct.create size in
-    Path.with_open_in file @@ fun flow ->
-    Flow.read_exact flow buf;
-    Cstruct.to_string buf
-
+  (* [Eio.Path.load] reads the open file up to its end, so a concurrent
+     [with_write_file], which renames a new file, cannot truncate the read. *)
   let read_file ~io:{ fs; _ } file =
-    try
-      let file = Path.(fs / file) in
-      Eio_pool.use openfile_pool (fun () ->
-          [%log.debug "Reading %a" Eio.Path.pp file];
-          let { Eio.File.Stat.size; _ } = Eio.Path.stat ~follow:false file in
-          let size = Optint.Int63.to_int size in
-          let buf = read_file_with_read file size in
-          Some buf)
-    with Eio.Io _ -> None
+    let file = Path.(fs / file) in
+    Eio_pool.use openfile_pool (fun () ->
+        [%log.debug "Reading %a" Eio.Path.pp file];
+        match Eio.Path.load file with
+        | contents -> Some contents
+        | exception Eio.Io (Eio.Fs.E (Not_found _), _) -> None
+        | exception
+            Eio.Io
+              ( Eio.Exn.X
+                  (Eio_unix.Unix_error
+                     ((Unix.EISDIR | ENOTDIR | ENAMETOOLONG), _, _)),
+                _ ) ->
+            None)
 
   let write_file ~io ~temp_dir ?(lock : lock option) file b =
     let file = Path.(io.fs / file) in

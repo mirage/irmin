@@ -64,7 +64,8 @@ module type S = sig
     unit ->
     unit
   (** Register a thread looking for changes in the given directory and return a
-      function to stop watching and free up resources. *)
+      function to stop watching and free up resources. If [value] raises
+      [Eio.Io], the change is logged and not notified. *)
 end
 
 module type Sigs = sig

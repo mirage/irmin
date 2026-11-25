@@ -354,8 +354,225 @@ module Test_traverse_gced = struct
     S.test_traverse_pack_file `Check_index (conf ~sw ~fs)
 end
 
+module Test_symlinks = struct
+  module S = V2 ()
+  include Test (S)
+
+  let root_links ~fs = Eio.Path.(fs / "_build" / "test_pack_symlinks")
+  let root_link ~fs = Eio.Path.(fs / "_build" / "test_pack_root_symlink")
+
+  (* [mirror ~src ~dst ()] creates [dst] with the directories of [src], and a
+     symbolic link to each of its files, as the dune sandbox does, or a copy
+     with [copy]. *)
+  let rec mirror ?(copy = false) ~src ~dst () =
+    Unix.mkdir dst 0o755;
+    Sys.readdir src
+    |> Array.iter @@ fun name ->
+       let src = Filename.concat src name and dst = Filename.concat dst name in
+       match (Sys.is_directory src, copy) with
+       | true, _ -> mirror ~copy ~src ~dst ()
+       | false, true ->
+           let contents = In_channel.with_open_bin src In_channel.input_all in
+           Out_channel.with_open_bin dst (fun oc ->
+               Out_channel.output_string oc contents)
+       | false, false -> Unix.symlink src dst
+
+  (* [check ~readonly ~fs root] opens the store at [root] and checks its
+     contents. *)
+  let check ~readonly ~fs root =
+    Eio.Switch.run @@ fun sw ->
+    let repo = S.Repo.v (config ~sw ~fs ~readonly ~fresh:false root) in
+    Fun.protect
+      ~finally:(fun () -> S.Repo.close repo)
+      (fun () -> check_repo repo archive)
+
+  let test ~fs () =
+    setup_test_env ~root_archive:(root_v1_archive ~fs)
+      ~root_local_build:(root_v1 ~fs);
+    let store =
+      Filename.concat (Sys.getcwd ()) (Eio.Path.native_exn (root_v1 ~fs))
+    in
+    let mirror_store ?copy () =
+      rm_dir (root_links ~fs);
+      mirror ?copy ~src:store ~dst:(Eio.Path.native_exn (root_links ~fs)) ()
+    in
+    let open_rw ~fresh () =
+      Eio.Switch.run @@ fun sw ->
+      S.Repo.close
+        (S.Repo.v (config ~sw ~fs ~readonly:false ~fresh (root_links ~fs)))
+    in
+    let is_not_a_file = function `Not_a_file -> true | _ -> false in
+    (* The migration of a V1 store refuses links before changing anything. *)
+    mirror_store ();
+    let files () =
+      Sys.readdir (Eio.Path.native_exn (root_links ~fs))
+      |> Array.to_list
+      |> List.sort String.compare
+    in
+    let files_before = files () in
+    Alcotest.check_raises_pack_error "migration of links" is_not_a_file
+      (open_rw ~fresh:false);
+    Alcotest.(check (list string)) "nothing migrated" files_before (files ());
+    (* Open the store in RW to migrate it to V3. *)
+    Eio.Switch.run (fun sw ->
+        S.Repo.close
+          (S.Repo.v (config ~sw ~fs ~readonly:false ~fresh:false (root_v1 ~fs))));
+    mirror_store ();
+    check ~readonly:true ~fs (root_links ~fs);
+    (* A read-write open refuses the links, while recreating the store, or its
+       index, replaces them. Both leave their targets untouched. *)
+    let index_dir = Eio.Path.(root_v1 ~fs / "index") in
+    (* The modification times as well, since a reconstructed index has the
+       same contents. *)
+    let index_files () =
+      Eio.Path.read_dir index_dir
+      |> List.map (fun name ->
+          let file = Eio.Path.(index_dir / name) in
+          ( name,
+            ( Eio.Path.load file,
+              (Eio.Path.stat ~follow:true file).Eio.File.Stat.mtime ) ))
+    in
+    let index_before = index_files () in
+    let check_target msg =
+      Alcotest.(check (list (pair string (pair string (float 0.)))))
+        (msg ^ ": index untouched")
+        index_before (index_files ());
+      check ~readonly:true ~fs (root_v1 ~fs)
+    in
+    let index_link = Eio.Path.(root_links ~fs / "index") in
+    let link_index_dir () =
+      rm_dir index_link;
+      Unix.symlink
+        (Filename.concat store "index")
+        (Eio.Path.native_exn index_link)
+    in
+    Alcotest.check_raises_pack_error "read-write open of links" is_not_a_file
+      (open_rw ~fresh:false);
+    check_target "read-write open";
+    Alcotest.check_raises_pack_error "index repair through links" is_not_a_file
+      (fun () ->
+        Eio.Switch.run @@ fun sw ->
+        S.test_traverse_pack_file `Check_and_fix_index
+          (config ~sw ~fs ~readonly:false ~fresh:false (root_links ~fs)));
+    check_target "index repair";
+    mirror_store ~copy:true ();
+    link_index_dir ();
+    Alcotest.check_raises_pack_error "read-write open of an index link"
+      is_not_a_file (open_rw ~fresh:false);
+    check_target "read-write open, index directory as a link";
+    mirror_store ();
+    open_rw ~fresh:true ();
+    check_target "fresh store";
+    mirror_store ();
+    link_index_dir ();
+    open_rw ~fresh:true ();
+    check_target "fresh store, index directory as a link";
+    mirror_store ();
+    Eio.Switch.run (fun sw ->
+        S.test_traverse_pack_file (`Reconstruct_index `In_place)
+          (config ~sw ~fs ~readonly:false ~fresh:false (root_links ~fs)));
+    check_target "index reconstruction";
+    (* A read-only open does not check the kind of the root, a read-write one
+       does. *)
+    rm_dir (root_link ~fs);
+    Unix.symlink store (Eio.Path.native_exn (root_link ~fs));
+    check ~readonly:false ~fs (root_link ~fs)
+
+  (* A loop of symbolic links, a dangling one where nothing can be created, or a
+     directory where a file is expected, gives an error rather than an
+     exception. *)
+  let test_errors ~fs () =
+    let module Io = Irmin_pack_unix.Io.Unix in
+    let root = Eio.Path.(fs / "_build" / "test_pack_symlink_errors") in
+    rm_dir root;
+    Eio.Path.mkdirs ~exists_ok:true ~perm:0o755 root;
+    let loop = Eio.Path.(root / "loop") in
+    let dangling = Eio.Path.(root / "dangling") in
+    Unix.symlink "loop" (Eio.Path.native_exn loop);
+    Unix.symlink "missing" (Eio.Path.native_exn dangling);
+    Alcotest.(check bool)
+      "a loop is not a file" true
+      (Io.classify_path loop = `Other);
+    Alcotest.(check bool)
+      "a dangling link exists" true
+      (Io.classify_path dangling = `Other);
+    (match Io.mkdir Eio.Path.(loop / "dir") with
+    | Error (`Io_misc _) -> ()
+    | Ok () | Error _ -> Alcotest.fail "creating a directory in a loop");
+    (match Io.mkdir dangling with
+    | Error (`File_exists _) -> ()
+    | Ok () | Error _ -> Alcotest.fail "creating a directory on a dangling link");
+    Eio.Switch.run @@ fun sw ->
+    (match Io.open_ ~sw ~path:loop ~readonly:true with
+    | Error (`Io_misc _) -> ()
+    | Ok _ | Error _ -> Alcotest.fail "opening a loop should fail");
+    (match Io.create ~sw ~path:root ~overwrite:true with
+    | Error (`File_exists _) -> ()
+    | Ok _ | Error _ -> Alcotest.fail "creating a directory should fail");
+    (match Io.create ~sw ~path:dangling ~overwrite:false with
+    | Error (`File_exists _) -> ()
+    | Ok _ | Error _ -> Alcotest.fail "creating a dangling link should fail");
+    match Io.create ~sw ~path:loop ~overwrite:true with
+    | Error (`Io_misc _) -> ()
+    | Ok _ | Error _ -> Alcotest.fail "overwriting a loop should fail"
+
+  (* Writing to a symbolic link never modifies its target: a read-write open
+     fails, while overwriting or copying replaces the link by a new file. *)
+  let test_write ~fs () =
+    let module Io = Irmin_pack_unix.Io.Unix in
+    let root = Eio.Path.(fs / "_build" / "test_pack_symlink_write") in
+    let target = Eio.Path.(root / "target") in
+    let link = Eio.Path.(root / "link") in
+    let setup target_name =
+      rm_dir root;
+      Eio.Path.mkdirs ~exists_ok:true ~perm:0o755 root;
+      Eio.Path.save ~create:(`Exclusive 0o644) target "contents";
+      Unix.symlink target_name (Eio.Path.native_exn link)
+    in
+    let check_replaced msg contents =
+      Alcotest.(check bool)
+        (msg ^ ": the link is replaced")
+        true
+        (Eio.Path.kind ~follow:false link = `Regular_file);
+      Alcotest.(check string) (msg ^ ": new file") contents (Eio.Path.load link);
+      Alcotest.(check string)
+        (msg ^ ": target untouched")
+        "contents" (Eio.Path.load target)
+    in
+    let overwrite msg =
+      Eio.Switch.run @@ fun sw ->
+      match Io.create ~sw ~path:link ~overwrite:true with
+      | Ok io -> Io.close io |> Result.get_ok
+      | Error _ -> Alcotest.fail msg
+    in
+    setup "target";
+    Eio.Switch.run (fun sw ->
+        (match Io.open_ ~sw ~path:link ~readonly:true with
+        | Ok io -> Io.close io |> Result.get_ok
+        | Error _ -> Alcotest.fail "read-only open of a symbolic link");
+        match Io.open_ ~sw ~path:link ~readonly:false with
+        | Error `Not_a_file -> ()
+        | Ok _ | Error _ -> Alcotest.fail "read-write open of a symbolic link");
+    overwrite "overwriting a symbolic link";
+    check_replaced "overwrite" "";
+    setup "missing";
+    overwrite "overwriting a dangling symbolic link";
+    check_replaced "overwrite a dangling link" "";
+    setup "target";
+    let src = Eio.Path.(root / "src") in
+    Eio.Path.save ~create:(`Exclusive 0o644) src "copy";
+    Io.copy_file ~src ~dst:link |> Result.get_ok;
+    check_replaced "copy" "copy"
+end
+
 let tests ~fs ~domain_mgr =
   [
+    Alcotest.test_case "Test store through symbolic links" `Quick
+      (Test_symlinks.test ~fs);
+    Alcotest.test_case "Test symbolic link errors" `Quick
+      (Test_symlinks.test_errors ~fs);
+    Alcotest.test_case "Test writing to a symbolic link" `Quick
+      (Test_symlinks.test_write ~fs);
     Alcotest.test_case "Test index reconstruction" `Quick
       (Test_reconstruct.test_reconstruct ~fs);
     Alcotest.test_case "Test gc not allowed" `Quick

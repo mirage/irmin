@@ -9,8 +9,8 @@
  (libraries eio_main irmin-tezos irmin-pack irmin-pack.unix))
 
 (rule
- (alias generate-cli-test-data)
- (targets data)
+ (targets
+  (dir data))
  (action
   (run %{exe:generate.exe})))
 
@@ -18,8 +18,7 @@
  (package irmin-tezos)
  (deps
   (file irmin_fsck.exe)
-  (file data)
-  (alias generate-cli-test-data))
+  data)
  (enabled_if
   (and
    (<> %{system} macosx)

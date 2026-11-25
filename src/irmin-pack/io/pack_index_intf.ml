@@ -54,6 +54,27 @@ module type S = sig
     string ->
     (t, [> create_error ]) result
 
+  val symlinks :
+    Eio.Fs.dir_ty Eio.Path.t ->
+    (Eio.Fs.dir_ty Eio.Path.t list, [> `Sys_error of string ]) result
+  (** [symlinks root] are the symbolic links of the index of the store at
+      [root]: its directory, or the files it contains (see
+      {!Io_intf.S.symlinks}). *)
+
+  val v_rw :
+    ?flush_callback:(unit -> unit) ->
+    ?throttle:[ `Block_writes | `Overcommit_memory ] ->
+    fresh:bool ->
+    log_size:int ->
+    Eio.Fs.dir_ty Eio.Path.t ->
+    (t, [> create_error | `Not_a_file | `Sys_error of string ]) result
+  (** [v_rw ~fresh ~log_size root] opens read-write the index of the store at
+      [root]. The index library opens its files through symbolic links. With
+      [fresh], the symbolic links of the index directory are removed first, so
+      that the new index does not truncate their targets. Without [fresh], a
+      symbolic link is [`Not_a_file], as for the other files of a store
+      ({!Io_intf.S.open_}). *)
+
   val reload : t -> (unit, [> write_error ]) result
   val close : t -> (unit, [> write_error ]) result
   val close_exn : t -> unit
