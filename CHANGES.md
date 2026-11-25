@@ -5,6 +5,17 @@
 - Convert to direct-style with Eio (#2149, @patricoferris, @ElectreAAS, @clecat, @art-w)
 - **irmin-pack**, **irmin-pack-tools**
   - Require `index` 1.7.0 or later (@balat)
+- **irmin-pack**
+  - A store whose files are symbolic links opens read-only again, as in
+    Irmin 3. A read-write open refuses them with `Not_a_file`, while a fresh
+    store, an index reconstructed in place, or a copy replaces them instead
+    of writing to their targets. File system errors when creating or opening
+    files are returned as `Io_misc` errors (#2419, @balat)
+- **irmin-fs**
+  - A file that exists but cannot be read (permission denied, loop of
+    symbolic links) raises an error instead of being taken for an absent
+    value, so that `test_and_set` does not overwrite it. A watcher logs it
+    and does not notify it (#2419, @balat)
 - **irmin-pack-tools**
   - `notty` is now optional, as it does not support OCaml 5.4 yet. Without
     it, the `show` command of `irmin-tezos-explorer` only reports an error

@@ -69,12 +69,22 @@ module type S = sig
     path:Eio.Fs.dir_ty Eio.Path.t ->
     overwrite:bool ->
     (t, [> create_error ]) result
+  (** [create ~sw ~path ~overwrite] creates the file [path] and opens it in
+      read-write mode. If [path] exists, it fails with [`File_exists], unless
+      [overwrite] is set and [path] is a regular file, which is then truncated,
+      or a symbolic link to a regular file or a dangling one, which is replaced
+      by a new file: its target is not modified. A loop of symbolic links gives
+      [`Io_misc]. *)
 
   val open_ :
     sw:Eio.Switch.t ->
     path:Eio.Fs.dir_ty Eio.Path.t ->
     readonly:bool ->
     (t, [> open_error ]) result
+  (** [open_ ~sw ~path ~readonly] opens the regular file [path], following
+      symbolic links in read-only mode. In read-write mode, a symbolic link is
+      [`Not_a_file]: some files of a store are replaced by a rename, which would
+      replace the link while the others are written through theirs. *)
 
   val close : t -> (unit, [> close_error ]) result
 
@@ -96,12 +106,21 @@ module type S = sig
     src:Eio.Fs.dir_ty Eio.Path.t ->
     dst:Eio.Fs.dir_ty Eio.Path.t ->
     (unit, [> `Sys_error of string ]) result
+  (** [copy_file ~src ~dst] copies [src] to [dst], following a symbolic link at
+      [src]. A symbolic link at [dst] is replaced: its target is not modified.
+  *)
 
   val mkdir : Eio.Fs.dir_ty Eio.Path.t -> (unit, [> mkdir_error ]) result
   val rmdir : Eio.Fs.dir_ty Eio.Path.t -> unit
 
   val unlink :
     Eio.Fs.dir_ty Eio.Path.t -> (unit, [> `Sys_error of string ]) result
+
+  val symlinks :
+    Eio.Fs.dir_ty Eio.Path.t ->
+    (Eio.Fs.dir_ty Eio.Path.t list, [> `Sys_error of string ]) result
+  (** [symlinks dir] is [[dir]] if [dir] is a symbolic link, the symbolic links
+      that [dir] contains if it is a directory, and [[]] otherwise. *)
 
   val unlink_dont_wait :
     on_exn:(exn -> unit) -> sw:Eio.Switch.t -> Eio.Fs.dir_ty Eio.Path.t -> unit
@@ -139,6 +158,8 @@ module type S = sig
   val classify_path :
     Eio.Fs.dir_ty Eio.Path.t ->
     [> `File | `Directory | `No_such_file_or_directory | `Other ]
+  (** [classify_path path] is the kind of file at [path], following symbolic
+      links. A dangling symbolic link is [`Other]. *)
 
   val readdir : Eio.Fs.dir_ty Eio.Path.t -> string list
 

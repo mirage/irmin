@@ -296,7 +296,7 @@ struct
     [%log.debug "add_volume: update control_file volume_num:%d" pl.volume_num];
     Control.set_payload ~sw control pl
 
-  let finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
+  let finish_constructing_rw config control ~make_dict ~make_suffix ~fresh_index
       ~make_lower =
     let open Result_syntax in
     let sw = Irmin_pack.Conf.switch config in
@@ -356,7 +356,7 @@ struct
       in
       (* [cb] will not be called during calls to [index.flush] because we will
          use [~no_callback:()] *)
-      make_index ~flush_callback:cb ~readonly:false ~throttle ~log_size root
+      Index.v_rw ~flush_callback:cb ~throttle ~fresh:fresh_index ~log_size root
     in
     (* 3. Open lower layer *)
     let* lower = make_lower () in
@@ -494,11 +494,6 @@ struct
     in
     let make_dict = Dict.create_rw ~sw ~overwrite in
     let make_suffix () = Suffix.create_rw ~sw ~root ~overwrite ~start_idx:0 in
-    let make_index ~flush_callback ~readonly ~throttle ~log_size root =
-      (* [overwrite] is ignored for index *)
-      Index.v ~fresh:true ~flush_callback ~readonly ~throttle ~log_size
-        (Eio.Path.native_exn root)
-    in
     let make_lower () =
       match lower_root with
       | None -> Ok None
@@ -509,8 +504,9 @@ struct
           let+ _ = add_volume_and_update_control ~sw l control in
           Some l
     in
-    finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
-      ~make_lower
+    (* [overwrite] is ignored for index. *)
+    finish_constructing_rw config control ~make_dict ~make_suffix
+      ~fresh_index:true ~make_lower
 
   (* Open rw **************************************************************** *)
 
@@ -662,10 +658,6 @@ struct
       Suffix.open_rw ~sw ~root ~appendable_chunk_poff ~start_idx ~chunk_num
         ~dead_header_size
     in
-    let make_index ~flush_callback ~readonly ~throttle ~log_size root =
-      Index.v ~fresh:false ~flush_callback ~readonly ~throttle ~log_size
-        (Eio.Path.native_exn root)
-    in
     let make_lower () =
       match lower_root with
       | None -> Ok None
@@ -675,8 +667,8 @@ struct
           let+ l = Lower.v ~sw ~readonly:false ~volume_num lower_root in
           Some l
     in
-    finish_constructing_rw config control ~make_dict ~make_suffix ~make_index
-      ~make_lower
+    finish_constructing_rw config control ~make_dict ~make_suffix
+      ~fresh_index:false ~make_lower
 
   let read_offset_from_legacy_file ~sw path =
     let open Result_syntax in
@@ -710,6 +702,19 @@ struct
     let src = Irmin_pack.Layout.V1_and_v2.pack ~root in
     let chunk_start_idx = 0 in
     let dst = Layout.suffix_chunk ~root ~chunk_idx:chunk_start_idx in
+    (* The migration renames and creates files before the read-write open,
+       which refuses symbolic links: refuse them before changing anything. *)
+    let* () =
+      let* pack_links = Io.symlinks src in
+      let* dict_links = Io.symlinks (Layout.dict ~root) in
+      let* index_links = Index.symlinks root in
+      match pack_links @ dict_links @ index_links with
+      | [] -> Ok ()
+      | path :: _ ->
+          [%log.err
+            "Cannot migrate the store: %a is a symbolic link" Eio.Path.pp path];
+          Error `Not_a_file
+    in
     let* suffix_end_poff = read_offset_from_legacy_file ~sw src in
     let* dict_end_poff =
       let path = Layout.dict ~root in
@@ -1051,9 +1056,7 @@ struct
     let* index =
       let log_size = Conf.index_log_size config in
       let throttle = Conf.merge_throttle config in
-      Index.v ~fresh:true ~flush_callback:Fun.id ~readonly:false ~throttle
-        ~log_size
-        (Eio.Path.native_exn dst_root)
+      Index.v_rw ~flush_callback:Fun.id ~throttle ~fresh:true ~log_size dst_root
     in
     (* Step 5. Add the commit to the index, close the index. *)
     let () =

@@ -10,6 +10,7 @@
   irmin-pack.io
   logs
   eio
+  eio.unix
   mtime
   mtime.clock.os
   progress

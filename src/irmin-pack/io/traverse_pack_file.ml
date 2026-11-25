@@ -62,7 +62,10 @@ module type Args = sig
   module File_manager : File_manager.S
   module Dispatcher : Dispatcher.S with module Fm = File_manager
   module Hash : Irmin.Hash.S
-  module Index : Pack_index.S with type key := Hash.t
+
+  module Index :
+    Pack_index.S with type key := Hash.t and module Io = File_manager.Io
+
   module Inode : Inode.S with type hash := Hash.t
   module Contents : Pack_value.S
   module Commit : Pack_value.S
@@ -132,11 +135,7 @@ end = struct
       [%log.app
         "Beginning index reconstruction with parameters: { log_size = %d }"
           log_size];
-      let index =
-        Index.v_exn ~fresh:true ~readonly:false ~log_size
-          (Eio.Path.native_exn dest)
-      in
-      index
+      Index.v_rw ~fresh:true ~log_size dest |> Errs.raise_if_error
 
     let iter_pack_entry ~always index key data =
       let _, _, kind = data in
@@ -183,8 +182,10 @@ end = struct
       let log_size = Conf.index_log_size config in
       [%log.app
         "Beginning index checking with parameters: { log_size = %d }" log_size];
-      let root = Conf.root config in
-      let index = Index.v_exn ~fresh:false ~readonly:false ~log_size root in
+      let root = Eio.Path.(Conf.fs config / Conf.root config) in
+      let index =
+        Index.v_rw ~fresh:false ~log_size root |> Errs.raise_if_error
+      in
       (index, ref 0)
 
     let iter_pack_entry ~always (index, idx_ref) key data =
