@@ -1,0 +1,9 @@
+(executable
+ (name main)
+ (modules main)
+ (libraries eio_main))
+
+(rule
+ (alias tsan-stress)
+ (action
+  (run ./main.exe)))

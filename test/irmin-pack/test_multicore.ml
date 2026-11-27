@@ -22,6 +22,12 @@ let src = Logs.Src.create "tests.multicore" ~doc:"Tests"
 
 module Log = (val Logs.src_log src : Logs.LOG)
 
+let int_env name default =
+  match Sys.getenv_opt name with Some s -> int_of_string s | None -> default
+
+let default_domains = int_env "IRMIN_MULTICORE_DOMAINS" 2
+let test_iter = int_env "IRMIN_MULTICORE_ITER" 1
+
 module Store = struct
   module Maker = Irmin_pack_unix.Maker (Conf)
   include Maker.Make (Schema)
@@ -130,7 +136,7 @@ let domains_run ~domain_mgr fns =
   in
   Eio.Fiber.all fibers
 
-let domains_spawn ~domain_mgr ?(nb = 2) fn =
+let domains_spawn ~domain_mgr ?(nb = default_domains) fn =
   domains_run ~domain_mgr @@ List.init nb (fun _ -> fn)
 
 let find_all tree paths =
@@ -499,18 +505,26 @@ let test_commit_v ~fs ~domain_mgr =
 
 let tests ~fs ~domain_mgr =
   let tc name fn = Alcotest.test_case name `Quick (fun () -> fn ~domain_mgr) in
-  [
-    tc "find." (test_find ~fs);
-    tc "length." (test_length ~fs);
-    tc "add / remove." (test_add_remove ~fs);
-    tc "commit." (test_commit ~fs);
-    tc "merkle." (test_merkle ~fs);
-    tc "hash." (test_hash ~fs);
-    tc "list-disk-no-cache." (test_list_disk ~fs ~cache:false);
-    tc "list-disk-with-cache." (test_list_disk ~fs ~cache:true);
-    tc "list-mem-no-cache." (test_list_mem ~fs ~cache:false);
-    tc "list-mem-with-cache." (test_list_mem ~fs ~cache:true);
-    tc "commit-of-hash." (test_commit_of_hash ~fs);
-    tc "commit-parents." (test_commit_parents ~fs);
-    tc "commit-v." (test_commit_v ~fs);
-  ]
+  let cases =
+    [
+      ("find.", test_find ~fs);
+      ("length.", test_length ~fs);
+      ("add / remove.", test_add_remove ~fs);
+      ("commit.", test_commit ~fs);
+      ("merkle.", test_merkle ~fs);
+      ("hash.", test_hash ~fs);
+      ("list-disk-no-cache.", test_list_disk ~fs ~cache:false);
+      ("list-disk-with-cache.", test_list_disk ~fs ~cache:true);
+      ("list-mem-no-cache.", test_list_mem ~fs ~cache:false);
+      ("list-mem-with-cache.", test_list_mem ~fs ~cache:true);
+      ("commit-of-hash.", test_commit_of_hash ~fs);
+      ("commit-parents.", test_commit_parents ~fs);
+      ("commit-v.", test_commit_v ~fs);
+    ]
+  in
+  if test_iter <= 1 then List.map (fun (name, fn) -> tc name fn) cases
+  else
+    List.concat_map
+      (fun (name, fn) ->
+        List.init test_iter (fun i -> tc (Printf.sprintf "%s%d" name i) fn))
+      cases
