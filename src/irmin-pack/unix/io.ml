@@ -158,6 +158,7 @@ module Unix = struct
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
   let write_exn t ~off ~len s =
+    Stats.(incr_io t.path @@ Io.Activity.write len);
     if String.length s < len then raise (Errors.Pack_error `Invalid_argument);
     match (t.closed, t.readonly) with
     | true, _ -> raise Errors.Closed
@@ -168,7 +169,6 @@ module Unix = struct
            usage is safe. *)
         let buf = Bytes.unsafe_of_string s in
         let () = Util.really_write t.fd off buf 0 len in
-        Index.Stats.add_write len;
         ()
 
   let write_string t ~off s =
@@ -189,12 +189,12 @@ module Unix = struct
         with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2)))
 
   let read_exn t ~off ~len buf =
+    Stats.(incr_io t.path @@ Io.Activity.read len);
     if len > Bytes.length buf then raise (Errors.Pack_error `Invalid_argument);
     match t.closed with
     | true -> raise Errors.Closed
     | false ->
         let nread = Util.really_read t.fd off len buf in
-        Index.Stats.add_read nread;
         if nread <> len then
           (* didn't manage to read the desired amount; in this case the interface seems to
              require we return `Read_out_of_bounds FIXME check this, because it is unusual
@@ -224,18 +224,20 @@ module Unix = struct
     let buf = Buffer.create 0 in
     let len = page_size in
     let bytes = Bytes.create len in
-    let rec aux ~off =
+    let rec aux ~off count =
       let nread =
         Syscalls.pread ~fd:t.fd ~fd_offset:off ~buffer:bytes ~buffer_offset:0
           ~length:len
       in
       if nread > 0 then (
-        Index.Stats.add_read nread;
         Buffer.add_subbytes buf bytes 0 nread;
-        if nread = len then aux ~off:Int63.(add off (of_int nread)))
+        if nread = len then aux ~off:Int63.(add off (of_int nread)) count
+        else count)
+      else count
     in
     try
-      aux ~off:Int63.zero;
+      let count = aux ~off:Int63.zero 0 in
+      Stats.(incr_io t.path @@ Io.Activity.read ~nb:count len);
       Ok (Buffer.contents buf)
     with Unix.Unix_error (e, s1, s2) -> Error (`Io_misc (e, s1, s2))
 
