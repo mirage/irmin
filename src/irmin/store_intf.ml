@@ -1006,10 +1006,9 @@ module type S_generic_key = sig
       head is not set) and stopping at [min] if specified. *)
 
   val last_modified : ?depth:int -> ?n:int -> t -> path -> commit list Lwt.t
-  (** [last_modified ?number c k] is the list of the last [number] commits that
-      modified [path], in ascending order of date. [depth] is the maximum depth
-      to be explored in the commit graph, if any. Default value for [number] is
-      1. *)
+  (** [last_modified ?n c k] is the list of the last [n] commits that modified
+      [path], in ascending order of date. [depth] is the maximum depth to be
+      explored in the commit graph, if any. Default value for [n] is 1. *)
 
   (** Manipulate branches. *)
   module Branch : sig
