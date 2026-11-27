@@ -1,0 +1,6 @@
+(library
+ (name irmin_lavyek)
+ (public_name irmin-lavyek)
+ (libraries irmin logs lavyek)
+ (preprocess
+  (pps ppx_irmin.internal)))

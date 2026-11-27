@@ -1,0 +1,15 @@
+(library
+ (name test_lavyek)
+ (modules test_lavyek)
+ (libraries irmin-lavyek irmin-test irmin-watcher))
+
+(executable
+ (name test)
+ (modules test)
+ (libraries alcotest eio_main irmin irmin-test test_lavyek))
+
+(rule
+ (alias runtest)
+ (package irmin-lavyek)
+ (action
+  (run %{exe:test.exe} -q --color=always)))
