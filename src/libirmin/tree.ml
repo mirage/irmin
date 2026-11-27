@@ -67,7 +67,7 @@ module Make (I : Cstubs_inverted.INTERNAL) = struct
           (fun
             (module Store : Irmin.Generic_key.S with type repo = repo) repo ->
             let k = Root.get_hash (module Store) k in
-            let t = run (fun () -> Store.Tree.of_hash repo (`Node k)) in
+            let t = run (fun () -> Store.Tree.of_hash repo (`Node (k, []))) in
             match t with
             | Some t -> Root.create_tree (module Store) t
             | None -> null tree))

@@ -32,13 +32,22 @@ See `irmin-pack/pack_value.ml` and `irmin-pack/inode.ml` for how `irmin-pack` re
 
 ### Inodes
 
-| Version  | Description                                         |
-| -------- | --------                                            |
-| V1       | Original data. Corresponds with V1 keys.            |
-| V2       | Introduces length prefix. Corresponds with V2 keys. |
+| Version  | Magic | Description                                                              |
+| -------- | ----- | ------------------------------------------------------------------------  |
+| V1       | N/A   | Original data. Corresponds with V1 keys.                                 |
+| V2       | 'R'/'O' | Introduces length prefix. Corresponds with V2 keys.                    |
+| V3       | 'S'/'T' | Introduces inline contents support. Node entries can embed small values. |
 
+- V1 added an [explicit length prefix](https://github.com/mirage/irmin/blob/1f046ddaedf3532bb236f7d19510182c5948b9d6/src/irmin-pack/inode.ml#L400) to support minimal indexing.
+- V3 introduces `Contents_inlined_value` node entry type, allowing content values smaller than 16 bytes (serialized) to be stored directly within the inode entry. See [inline contents design doc](./design/inline_contents.md) for details.
 
-V1 added an [explicit length prefix](https://github.com/mirage/irmin/blob/1f046ddaedf3532bb236f7d19510182c5948b9d6/src/irmin-pack/inode.ml#L400) to support minimal indexing.
+**Inode magic bytes:**
+| Magic | Kind              | Description                    |
+| ----- | ----------------- | ------------------------------ |
+| 'R'   | Inode_v2_root     | V2 root inode                  |
+| 'O'   | Inode_v2_nonroot  | V2 non-root inode              |
+| 'S'   | Inode_v3_root     | V3 root inode (inline support) |
+| 'T'   | Inode_v3_nonroot  | V3 non-root inode (inline support) |
 
 ### Commits
 

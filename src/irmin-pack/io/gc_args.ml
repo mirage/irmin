@@ -38,10 +38,16 @@ module type S = sig
   module Node_value : sig
     type t
     type step
+    type metadata
 
     val pred :
       t ->
-      (step option * [ `Contents of key | `Inode of key | `Node of key ]) list
+      (step option
+      * [ `Contents of key
+        | `Contents_inlined of string * metadata
+        | `Inode of key
+        | `Node of key * key list ])
+      list
   end
 
   module Node_store : sig

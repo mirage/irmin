@@ -97,7 +97,7 @@ let c ?(info = Metadata.default) blob = `Contents (blob, info)
 let invalid_tree () =
   let repo = Store.Repo.v (Irmin_mem.config ()) in
   let hash = Store.Hash.hash (fun f -> f "") in
-  Tree.shallow repo (`Node hash)
+  Tree.shallow repo (`Node (hash, []))
 
 let test_bindings () =
   let tree =
@@ -552,7 +552,7 @@ let test_fold_force () =
   let invalid_tree =
     let repo = Store.Repo.v (Irmin_mem.config ()) in
     let hash = Store.Hash.hash (fun f -> f "") in
-    Tree.shallow repo (`Node hash)
+    Tree.shallow repo (`Node (hash, []))
   in
 
   (* Ensure that [fold] doesn't force a lazy tree when [~force:(`False f)],
@@ -666,7 +666,7 @@ module Broken = struct
 
   let random_node () =
     let value = tree [ ("k", c (random_string32 ())) ] in
-    let value_ptr = `Node (Tree.hash value) in
+    let value_ptr = `Node (Tree.hash value, []) in
     (value, value_ptr)
 
   let test_hashes () =
@@ -786,6 +786,15 @@ module Broken = struct
 end
 
 let test_kind_empty_path () =
+  let kind_t : [ `Contents | `Node ] Irmin.Type.t =
+    let open Irmin.Type in
+    variant "kind" (fun contents node -> function
+      | `Contents -> contents
+      | `Node -> node)
+    |~ case0 "contents" `Contents
+    |~ case0 "node" `Node
+    |> sealv
+  in
   let cont = c "c" |> Tree.of_concrete in
   let tree = `Tree [ ("k", c "c") ] |> Tree.of_concrete in
   let k = Tree.kind cont [] in
@@ -825,11 +834,11 @@ let test_is_empty () =
   in
   let repo = Store.Repo.v (Irmin_mem.config ()) in
   let () =
-    let shallow_empty = Tree.(shallow repo (`Node (hash (empty ())))) in
+    let shallow_empty = Tree.(shallow repo (`Node (hash (empty ()), []))) in
     Alcotest.(check bool) "shallow empty tree" true (is_empty shallow_empty)
   in
   let () =
-    let shallow_empty = Tree.(shallow repo (`Node (hash kv))) in
+    let shallow_empty = Tree.(shallow repo (`Node (hash kv, []))) in
     Alcotest.(check bool)
       "shallow non-empty tree" false (is_empty shallow_empty)
   in

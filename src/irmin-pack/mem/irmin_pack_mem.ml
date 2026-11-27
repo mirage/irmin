@@ -149,6 +149,9 @@ module Maker (Config : Irmin_pack.Conf.S) = struct
                       f contents node commit)))
 
         let v config =
+          (* Set the global inline_contents flag based on config *)
+          Irmin.Tree.set_inline_contents_enabled
+            (Irmin_pack.Conf.inline_contents config);
           let root = Irmin_pack.Conf.root config in
           let contents = Contents.Indexable.v root in
           let node = Node.Indexable.v root in

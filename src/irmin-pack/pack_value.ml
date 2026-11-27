@@ -26,6 +26,8 @@ module Kind = struct
     | Inode_v1_stable
     | Inode_v2_root
     | Inode_v2_nonroot
+    | Inode_v3_root
+    | Inode_v3_nonroot
     | Dangling_parent_commit
 
   let to_magic = function
@@ -36,6 +38,8 @@ module Kind = struct
     | Inode_v1_stable -> 'N'
     | Inode_v2_root -> 'R'
     | Inode_v2_nonroot -> 'O'
+    | Inode_v3_root -> 'S'
+    | Inode_v3_nonroot -> 'T'
     | Dangling_parent_commit -> 'P'
 
   let of_magic_exn = function
@@ -46,6 +50,8 @@ module Kind = struct
     | 'N' -> Inode_v1_stable
     | 'R' -> Inode_v2_root
     | 'O' -> Inode_v2_nonroot
+    | 'S' -> Inode_v3_root
+    | 'T' -> Inode_v3_nonroot
     | 'P' -> Dangling_parent_commit
     | c -> Fmt.failwith "Kind.of_magic: unexpected magic char %C" c
 
@@ -58,6 +64,8 @@ module Kind = struct
       Inode_v1_stable;
       Inode_v2_root;
       Inode_v2_nonroot;
+      Inode_v3_root;
+      Inode_v3_nonroot;
       Dangling_parent_commit;
     ]
 
@@ -69,7 +77,9 @@ module Kind = struct
     | Inode_v1_stable -> 4
     | Inode_v2_root -> 5
     | Inode_v2_nonroot -> 6
-    | Dangling_parent_commit -> 7
+    | Inode_v3_root -> 7
+    | Inode_v3_nonroot -> 8
+    | Dangling_parent_commit -> 9
 
   let pp =
     Fmt.of_to_string (function
@@ -80,13 +90,16 @@ module Kind = struct
       | Inode_v1_stable -> "Inode_v1_stable"
       | Inode_v2_root -> "Inode_v2_root"
       | Inode_v2_nonroot -> "Inode_v2_nonroot"
+      | Inode_v3_root -> "Inode_v3_root"
+      | Inode_v3_nonroot -> "Inode_v3_nonroot"
       | Dangling_parent_commit -> "Dangling_parent_commit")
 
   let length_header_exn : t -> length_header =
     let some_varint = Some `Varint in
     function
     | Commit_v1 | Inode_v1_unstable | Inode_v1_stable -> None
-    | Commit_v2 | Inode_v2_root | Inode_v2_nonroot | Dangling_parent_commit ->
+    | Commit_v2 | Inode_v2_root | Inode_v2_nonroot | Inode_v3_root
+    | Inode_v3_nonroot | Dangling_parent_commit ->
         some_varint
     | Contents ->
         Fmt.failwith

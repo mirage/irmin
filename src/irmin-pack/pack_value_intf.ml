@@ -81,6 +81,8 @@ module type Sigs = sig
       | Inode_v1_stable
       | Inode_v2_root
       | Inode_v2_nonroot
+      | Inode_v3_root
+      | Inode_v3_nonroot
       | Dangling_parent_commit
     [@@deriving irmin]
 
