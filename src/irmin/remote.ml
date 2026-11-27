@@ -28,6 +28,9 @@ module None (H : Type.S) (R : Type.S) = struct
   let fetch () ?depth:_ _ _br =
     Lwt.return (Error (`Msg "fetch operation is not available"))
 
+  let fetch_all () ?depth:_ _ =
+    Lwt.return [ Error (`Msg "fetch_all operation is not available") ]
+
   let push () ?depth:_ _ _br =
     Lwt.return (Error (`Msg "push operation is not available"))
 end
