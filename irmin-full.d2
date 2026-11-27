@@ -1,0 +1,52 @@
+direction: down
+
+
+irmin-fs -> irmin-watcher
+irmin-git -> irmin-watcher
+irmin-server -> irmin-watcher
+irmin-client -> irmin-watcher
+
+# Dependencies
+irmin-git -> ppx_irmin
+irmin-pack -> ppx_irmin
+irmin-server -> ppx_irmin
+irmin-test -> ppx_irmin
+
+# Core Dependencies
+irmin -> ppx_irmin
+
+
+
+# Backend Dependencies
+irmin-fs -> irmin
+irmin-fs -> irmin-test
+irmin-git -> irmin
+irmin-git -> irmin-test
+irmin-pack -> irmin
+irmin-pack -> irmin-test
+
+# Networking Dependencies
+irmin-graphql -> irmin
+irmin-server -> irmin
+irmin-server -> irmin-pack
+irmin-server -> irmin-test
+irmin-client -> irmin-server
+irmin-client -> irmin-cli
+irmin-client -> irmin-test
+
+# Tooling & Testing Dependencies
+irmin-test -> irmin
+irmin-cli -> irmin; irmin-git; irmin-fs; irmin-pack; irmin-graphql; irmin-tezos; irmin-server; irmin-watcher; irmin-test
+irmin-bench -> irmin-pack; irmin-test; irmin-tezos
+libirmin -> irmin; irmin-cli
+irmin-pack-tools -> irmin-tezos; irmin-pack; irmin-test
+
+# Mirage Dependencies
+irmin-mirage -> irmin
+irmin-mirage-git -> irmin-mirage; irmin-git
+irmin-mirage-graphql -> irmin-mirage; irmin-graphql
+
+# Specialized Dependencies
+irmin-tezos -> irmin; irmin-pack; ppx_irmin; irmin-test
+irmin-containers -> irmin; irmin-fs; ppx_irmin
+
